@@ -1,0 +1,60 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: reloader
+  namespace: flux-system
+spec:
+  interval: 5m
+  timeout: 5m
+  chart:
+    spec:
+      chart: reloader
+      version: "2.2.16"
+      sourceRef:
+        kind: HelmRepository
+        name: stakater-repo
+        namespace: flux-system
+  releaseName: reloader
+  targetNamespace: reloader
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+  values:
+    reloader:
+      # Opt-in only. autoReloadAll would make Reloader restart EVERY workload
+      # whose ConfigMaps/Secrets change, cluster-wide — far too blunt here,
+      # where the only intended consumer is authentik's DB credential.
+      # Workloads opt in with their own annotation instead.
+      autoReloadAll: false
+
+      # "annotations" writes reloader.stakater.com/last-reloaded-from into the
+      # pod template rather than injecting a dummy env var (the "env-vars"
+      # default). The env-var strategy mutates the workload spec, which Flux
+      # then sees as drift and reconciles away — fighting Reloader. The
+      # upstream docs recommend this strategy specifically for GitOps setups.
+      reloadStrategy: annotations
+
+      # Needed so a Secret change in the authentik namespace is seen; Reloader
+      # runs in its own namespace.
+      watchGlobally: true
+
+      logFormat: json
+
+      # Single replica is fine: a missed reload is recoverable (restart the
+      # pod by hand) and this is not on any request path. enableHA would add
+      # leader election for no real benefit at this scale.
+      enableHA: false
+
+      # NB: resources belongs under reloader.deployment, not at the top level.
+      # A top-level `resources:` block is silently ignored by this chart.
+      deployment:
+        resources:
+          requests:
+            cpu: 10m
+            memory: 128Mi
+          limits:
+            memory: 512Mi

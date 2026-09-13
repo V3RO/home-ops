@@ -1,0 +1,42 @@
+{{- $postgres := default dict .Values.postgres -}}
+{{- if (default false (get $postgres "enabled")) }}
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: mealie-versitygw-store
+  namespace: {{ .Release.Namespace }}
+spec:
+  retentionPolicy: 7d
+  instanceSidecarConfiguration:
+    env:
+      - name: AWS_DEFAULT_REGION
+        value: homelab
+  configuration:
+    destinationPath: s3://cnpg-backups/mealie/
+    endpointURL: http://versitygw.versitygw.svc.cluster.local:7070
+    s3Credentials:
+      accessKeyId:
+        name: cnpg-mealie-backup-credentials
+        key: AWS_ACCESS_KEY_ID
+      secretAccessKey:
+        name: cnpg-mealie-backup-credentials
+        key: AWS_SECRET_ACCESS_KEY
+    wal:
+      compression: gzip
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: backup-{{ default "mealie-postgres" (get $postgres "clusterName") }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  schedule: "0 25 3 * * *"
+  backupOwnerReference: self
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io
+    parameters:
+      barmanObjectName: mealie-versitygw-store
+  cluster:
+    name: {{ default "mealie-postgres" (get $postgres "clusterName") }}
+{{- end }}

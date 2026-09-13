@@ -1,0 +1,85 @@
+kiali-server:
+  # ── Istio environment ──
+  # Kiali needs to know where the Istio control plane lives
+  istio_namespace: istio-system
+
+  # ── Authentication: Native OpenID Connect with Authentik ──
+  auth:
+    strategy: openid
+    openid:
+      client_id: kiali
+      issuer_uri: "https://auth.schober.dev/application/o/kiali/"
+      scopes:
+        - openid
+        - email
+        - profile
+      username_claim: preferred_username
+      # Homelab: all authenticated users get full access (no per-user K8s RBAC)
+      disable_rbac: true
+
+  # ── Deployment settings ──
+  deployment:
+    # The Kubernetes secret that holds the OIDC client secret (key: oidc-secret)
+    secret_name: kiali-secret
+    ingress:
+      enabled: false
+    # Not needed in ambient mode (no sidecar proxy)
+    pod_annotations: {}
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        memory: 512Mi
+
+  # ── Server settings ──
+  server:
+    web_fqdn: kiali.schober.dev
+    web_root: /
+    web_schema: https
+    web_port: 443
+
+  # ── External services integration ──
+  external_services:
+    prometheus:
+      url: "http://prometheus-server.monitoring.svc.cluster.local:80"
+
+    grafana:
+      enabled: true
+      in_cluster_url: "http://grafana.monitoring.svc.cluster.local:80"
+      url: "https://grafana.schober.dev"
+
+    tracing:
+      enabled: true
+      provider: tempo
+      # Tempo HTTP API (query-frontend)
+      internal_url: "http://tempo.monitoring.svc.cluster.local:3200/"
+      external_url: "https://grafana.schober.dev"
+      use_grpc: false
+      tempo_config:
+        org_id: "1"
+        # TODO: Update with actual Grafana Tempo datasource UID
+        datasource_uid: ""
+        url_format: grafana
+
+    istio:
+      root_namespace: istio-system
+
+# ── Custom template values (used by templates/) ──
+app:
+  host: kiali.schober.dev
+  gateway:
+    name: internal-gateway
+    namespace: istio-ingress-internal
+    sectionName: https
+  backendServiceName: kiali
+  servicePort: 20001
+
+externalSecret:
+  enabled: true
+  refreshInterval: 1h0m0s
+  secretStoreRef:
+    name: bitwarden-app-secrets
+    kind: ClusterSecretStore
+  keys:
+    oidcSecret: authentik-kiali-client-secret

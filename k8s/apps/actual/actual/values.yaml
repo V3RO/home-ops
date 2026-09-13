@@ -1,0 +1,105 @@
+home-ops-chart:
+  image:
+    repository: ghcr.io/actualbudget/actual
+    tag: 25.3.1
+    pullPolicy: IfNotPresent
+
+  strategy:
+    type: Recreate
+
+  ports:
+    - name: http
+      containerPort: 5006
+      protocol: TCP
+
+  livenessProbe:
+    httpGet:
+      path: /
+      port: http
+    initialDelaySeconds: 30
+    periodSeconds: 30
+
+  readinessProbe:
+    httpGet:
+      path: /
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 10
+
+  initContainers:
+    - name: config-init
+      image: busybox:1.36
+      command:
+        - sh
+        - -c
+        - |
+          sed "s|\${ACTUAL_OPENID_CLIENT_SECRET}|${ACTUAL_OPENID_CLIENT_SECRET}|g" \
+            /config-tpl/config.json.tpl > /config-out/config.json
+      env:
+        - name: ACTUAL_OPENID_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: actual-home-ops-chart-secrets
+              key: actual-oidc-client-secret
+      volumeMounts:
+        - name: config-template
+          mountPath: /config-tpl
+        - name: config-out
+          mountPath: /config-out
+
+  extraVolumes:
+    - name: config-template
+      configMap:
+        name: actual-config-template
+    - name: config-out
+      emptyDir: {}
+
+  extraVolumeMounts:
+    - name: config-out
+      mountPath: /data/config.json
+      subPath: config.json
+
+  service:
+    ports:
+      - port: 5006
+        targetPort: http
+        protocol: TCP
+        name: http
+
+  httpRoute:
+    enabled: true
+    hostnames:
+      - actual.schober.dev
+    parentRefs:
+      - name: internal-gateway
+        namespace: istio-ingress-internal
+        sectionName: https
+    rules:
+      - backendRefs:
+          - name: actual-home-ops-chart
+            port: 5006
+
+  persistence:
+    data:
+      enabled: true
+      existingClaim: actual-data
+      size: 5Gi
+      mountPath: /data
+
+  externalSecrets:
+    secrets:
+      enabled: true
+      refreshInterval: 1h0m0s
+      secretStoreRef:
+        kind: ClusterSecretStore
+        name: bitwarden-app-secrets
+      data:
+        - secretKey: actual-oidc-client-secret
+          remoteRef:
+            key: authentik-actual-client-secret
+      injectAsEnv: false
+
+pvc:
+  name: actual-data
+  storageClass: longhorn
+  size: 2Gi

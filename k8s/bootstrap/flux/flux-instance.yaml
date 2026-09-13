@@ -1,0 +1,38 @@
+# The Flux Operator manages the Flux controllers according to this instance.
+# The instance itself is synced from this directory by the Flux Kustomization
+# the operator generates from spec.sync, making Flux (including its own
+# version) fully git-managed after the initial manual/tofu bootstrap:
+#
+#   helm install flux-operator oci://ghcr.io/controlplaneio-fluxcd/charts/flux-operator -n flux-system
+#   kubectl apply --server-side -k k8s/bootstrap/flux
+apiVersion: fluxcd.controlplane.io/v1
+kind: FluxInstance
+metadata:
+  name: flux
+  namespace: flux-system
+  annotations:
+    fluxcd.controlplane.io/reconcile: "enabled"
+    fluxcd.controlplane.io/reconcileEvery: "1h"
+    fluxcd.controlplane.io/reconcileTimeout: "5m"
+spec:
+  distribution:
+    # semver range: the operator automatically upgrades Flux to the latest
+    # stable 2.x release and handles migrations between versions
+    version: "2.x"
+    registry: "ghcr.io/fluxcd"
+  components:
+    - source-controller
+    - kustomize-controller
+    - helm-controller
+    - notification-controller
+  cluster:
+    type: kubernetes
+    size: medium
+    multitenant: false
+    networkPolicy: true
+    domain: "cluster.local"
+  sync:
+    kind: GitRepository
+    url: "https://github.com/V3RO/homelab.git"
+    ref: "refs/heads/main"
+    path: "k8s/bootstrap/flux"

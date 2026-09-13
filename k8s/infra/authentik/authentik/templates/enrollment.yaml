@@ -1,0 +1,140 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: blueprint-enrollment
+  namespace: {{ .Release.Namespace }}
+data:
+  enrollment.yaml: |
+    # yaml-language-server: $schema=https://goauthentik.io/blueprints/schema.json
+    version: 1
+    metadata:
+      name: Self-Service Enrollment
+      labels:
+        blueprints.goauthentik.io/description: "Blueprint for self-service user enrollment with username/email and password"
+    entries:
+      - model: authentik_flows.flow
+        id: enrollment-flow
+        identifiers:
+          slug: self-service-enrollment
+        attrs:
+          name: Self-Service Enrollment
+          slug: self-service-enrollment
+          title: Create an Account
+          designation: enrollment
+          authentication: require_unauthenticated
+
+      - model: authentik_stages_prompt.prompt
+        id: field-username
+        identifiers:
+          field_key: username
+          label: Username
+        attrs:
+          field_key: username
+          label: Username
+          type: username
+          required: true
+          placeholder: Enter a username
+          order: 0
+
+      - model: authentik_stages_prompt.prompt
+        id: field-email
+        identifiers:
+          field_key: email
+          label: Email
+        attrs:
+          field_key: email
+          label: Email
+          type: email
+          required: true
+          placeholder: Enter your email address
+          order: 1
+
+      - model: authentik_stages_prompt.prompt
+        id: field-password
+        identifiers:
+          field_key: password
+          label: Password
+        attrs:
+          field_key: password
+          label: Password
+          type: password
+          required: true
+          placeholder: Choose a password
+          order: 2
+
+      - model: authentik_stages_prompt.prompt
+        id: field-password-repeat
+        identifiers:
+          field_key: password_repeat
+          label: Password (repeat)
+        attrs:
+          field_key: password_repeat
+          label: Password (repeat)
+          type: password
+          required: true
+          placeholder: Repeat your password
+          order: 3
+
+      - model: authentik_stages_prompt.promptstage
+        id: enrollment-prompt-stage
+        identifiers:
+          name: enrollment-prompt
+        attrs:
+          name: enrollment-prompt
+          fields:
+            - !KeyOf field-username
+            - !KeyOf field-email
+            - !KeyOf field-password
+            - !KeyOf field-password-repeat
+          validation_policies: []
+
+      - model: authentik_stages_user_write.userwritestage
+        id: enrollment-user-write
+        identifiers:
+          name: enrollment-user-write
+        attrs:
+          name: enrollment-user-write
+          user_creation_mode: always_create
+          user_type: internal
+
+      - model: authentik_stages_user_login.userloginstage
+        id: enrollment-user-login
+        identifiers:
+          name: enrollment-user-login
+        attrs:
+          name: enrollment-user-login
+          session_duration: seconds=0
+
+      - model: authentik_flows.flowstagebinding
+        id: enrollment-binding-10
+        identifiers:
+          target: !KeyOf enrollment-flow
+          stage: !KeyOf enrollment-prompt-stage
+          order: 10
+        attrs:
+          target: !KeyOf enrollment-flow
+          stage: !KeyOf enrollment-prompt-stage
+          order: 10
+
+      - model: authentik_flows.flowstagebinding
+        id: enrollment-binding-20
+        identifiers:
+          target: !KeyOf enrollment-flow
+          stage: !KeyOf enrollment-user-write
+          order: 20
+        attrs:
+          target: !KeyOf enrollment-flow
+          stage: !KeyOf enrollment-user-write
+          order: 20
+
+      - model: authentik_flows.flowstagebinding
+        id: enrollment-binding-30
+        identifiers:
+          target: !KeyOf enrollment-flow
+          stage: !KeyOf enrollment-user-login
+          order: 30
+        attrs:
+          target: !KeyOf enrollment-flow
+          stage: !KeyOf enrollment-user-login
+          order: 30

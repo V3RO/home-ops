@@ -1,0 +1,37 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: authentik-postgres
+  namespace: {{ .Release.Namespace }}
+spec:
+  instances: 3
+  imageName: {{ .Values.postgres.imageName }}
+
+  storage:
+    pvcTemplate:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: {{ .Values.postgres.storage.size }}
+      storageClassName: {{ .Values.postgres.storage.class }}
+      {{- with .Values.postgres.storage.volumeName }}
+      volumeName: {{ . }}
+      {{- end }}
+  managed:
+    roles:
+      - name: authentik
+        ensure: present
+        login: true
+        passwordSecret:
+          name: cnpg-authentik-credentials
+  bootstrap:
+    initdb:
+      database: authentik
+      owner: authentik
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      enabled: true
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: authentik-versitygw-store

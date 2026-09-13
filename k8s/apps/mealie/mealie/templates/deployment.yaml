@@ -1,0 +1,163 @@
+{{- $app := default dict .Values.app -}}
+{{- $name := default "mealie" (get $app "backendServiceName") -}}
+{{- $image := default dict .Values.image -}}
+{{- $mealie := default dict .Values.mealie -}}
+{{- $env := default dict (get $mealie "env") -}}
+{{- $secretKeyCfg := default dict (get $mealie "secretKey") -}}
+{{- $secretKeyEnabled := default false (get $secretKeyCfg "enabled") -}}
+{{- $db := default dict .Values.database -}}
+{{- $dbKeys := default dict (get $db "keys") -}}
+{{- $dbSecretName := default "mealie-postgres-app" (get $db "secretName") -}}
+{{- $dbPasswordSecretName := default $dbSecretName (get $db "passwordSecretName") -}}
+{{- $auth := default dict .Values.authentik -}}
+{{- $authEnabled := default false (get $auth "enabled") -}}
+{{- $authSecret := default dict (get $auth "clientSecret") -}}
+{{- $svc := default dict .Values.service -}}
+{{- $persistence := default dict .Values.persistence -}}
+{{- $persistenceEnabled := default false (get $persistence "enabled") -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ $name }}
+spec:
+  replicas: {{ default 1 .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ $name }}
+  template:
+    metadata:
+      labels:
+        app: {{ $name }}
+    spec:
+      containers:
+        - name: {{ $name }}
+          image: {{ default "ghcr.io/mealie-recipes/mealie:v3.11.0" (printf "%s:%s" (default "ghcr.io/mealie-recipes/mealie" (get $image "repository")) (default "v3.11.0" (get $image "tag"))) }}
+          imagePullPolicy: {{ default "IfNotPresent" (get $image "pullPolicy") }}
+          ports:
+            - name: http
+              containerPort: {{ default 9000 (get $svc "targetPort") }}
+              protocol: TCP
+          env:
+            - name: ALLOW_SIGNUP
+              value: {{ default "false" (get $env "ALLOW_SIGNUP") | quote }}
+            - name: PUID
+              value: {{ default "1000" (get $env "PUID") | quote }}
+            - name: PGID
+              value: {{ default "1000" (get $env "PGID") | quote }}
+            - name: TZ
+              value: {{ default "Europe/Vienna" (get $env "TZ") | quote }}
+            - name: BASE_URL
+              value: {{ default (printf "https://%s" (default "mealie.schober.dev" (get $app "host"))) (get $env "BASE_URL") | quote }}
+            - name: DB_ENGINE
+              value: {{ default "postgres" (get $env "DB_ENGINE") | quote }}
+            {{- if hasKey $env "POSTGRES_SERVER" }}
+            - name: POSTGRES_SERVER
+              value: {{ get $env "POSTGRES_SERVER" | quote }}
+            {{- else }}
+            - name: POSTGRES_SERVER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $dbSecretName }}
+                  key: {{ default "host" (get $dbKeys "host") }}
+            {{- end }}
+            {{- if hasKey $env "POSTGRES_PORT" }}
+            - name: POSTGRES_PORT
+              value: {{ get $env "POSTGRES_PORT" | quote }}
+            {{- else }}
+            - name: POSTGRES_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $dbSecretName }}
+                  key: {{ default "port" (get $dbKeys "port") }}
+            {{- end }}
+            {{- if hasKey $env "POSTGRES_DB" }}
+            - name: POSTGRES_DB
+              value: {{ get $env "POSTGRES_DB" | quote }}
+            {{- else }}
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $dbSecretName }}
+                  key: {{ default "dbname" (get $dbKeys "dbname") }}
+            {{- end }}
+            {{- if hasKey $env "POSTGRES_USER" }}
+            - name: POSTGRES_USER
+              value: {{ get $env "POSTGRES_USER" | quote }}
+            {{- else }}
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $dbSecretName }}
+                  key: {{ default "username" (get $dbKeys "username") }}
+            {{- end }}
+            {{- if hasKey $env "POSTGRES_PASSWORD" }}
+            - name: POSTGRES_PASSWORD
+              value: {{ get $env "POSTGRES_PASSWORD" | quote }}
+            {{- else }}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $dbPasswordSecretName }}
+                  key: {{ default "password" (get $dbKeys "password") }}
+            {{- end }}
+            {{- if $secretKeyEnabled }}
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default "mealie-secret" (get $secretKeyCfg "secretName") }}
+                  key: {{ default "SECRET_KEY" (get $secretKeyCfg "secretKey") }}
+            {{- end }}
+            {{- if $authEnabled }}
+            - name: OIDC_AUTH_ENABLED
+              value: "true"
+            - name: OIDC_PROVIDER_NAME
+              value: {{ default "authentik" (get $auth "providerName") | quote }}
+            - name: OIDC_CONFIGURATION_URL
+              value: {{ default "" (get $auth "configurationUrl") | quote }}
+            - name: OIDC_CLIENT_ID
+              value: {{ default "" (get $auth "clientId") | quote }}
+            - name: OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default "mealie-secret" (get $authSecret "secretName") }}
+                  key: {{ default "OIDC_CLIENT_SECRET" (get $authSecret "secretKey") }}
+            - name: OIDC_SIGNUP_ENABLED
+              value: {{ ternary "true" "false" (default true (get $auth "signupEnabled")) | quote }}
+            - name: OIDC_USER_GROUP
+              value: {{ default "" (get (default dict (get $auth "groups")) "users") | quote }}
+            - name: OIDC_ADMIN_GROUP
+              value: {{ default "" (get (default dict (get $auth "groups")) "admins") | quote }}
+            - name: OIDC_AUTO_REDIRECT
+              value: {{ ternary "true" "false" (default true (get $auth "autoRedirect")) | quote }}
+            - name: OIDC_REMEMBER_ME
+              value: {{ ternary "true" "false" (default true (get $auth "rememberMe")) | quote }}
+            {{- end }}
+            {{- with (get $mealie "extraEnv") }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+          {{- if $persistenceEnabled }}
+          volumeMounts:
+            - name: data
+              mountPath: {{ default "/app/data" (get $persistence "mountPath") }}
+          {{- end }}
+      {{- if $persistenceEnabled }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ default "mealie-data" (get $persistence "claimName") }}
+      {{- end }}

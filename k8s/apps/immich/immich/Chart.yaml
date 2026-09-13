@@ -1,0 +1,9 @@
+apiVersion: v2
+name: immich
+description: Immich - Self-hosted photo and video management
+type: application
+version: 0.1.0
+dependencies:
+  - name: immich
+    version: 0.11.0
+    repository: oci://ghcr.io/immich-app/immich-charts

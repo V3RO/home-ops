@@ -1,0 +1,78 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: cilium
+  namespace: flux-system
+spec:
+  interval: 5m
+  timeout: 10m
+  chart:
+    spec:
+      chart: ./k8s/infra/kube-system/cilium
+      sourceRef:
+        kind: GitRepository
+        name: flux-system
+        namespace: flux-system
+      reconcileStrategy: Revision
+  releaseName: cilium
+  targetNamespace: kube-system
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+  values:
+    cilium:
+      operator:
+        replicas: 1
+
+      ipam:
+        mode: kubernetes
+
+      kubeProxyReplacement: true
+
+      routingMode: native
+      autoDirectNodeRoutes: true
+      ipv4NativeRoutingCIDR: 10.244.0.0/16
+
+      bgpControlPlane:
+        enabled: true
+
+      socketLB:
+        hostNamespaceOnly: true
+
+      cni:
+        exclusive: false
+
+      envoy:
+        enabled: false
+
+      securityContext:
+        capabilities:
+          ciliumAgent:
+            - CHOWN
+            - KILL
+            - NET_ADMIN
+            - NET_RAW
+            - IPC_LOCK
+            - SYS_ADMIN
+            - SYS_RESOURCE
+            - DAC_OVERRIDE
+            - FOWNER
+            - SETGID
+            - SETUID
+          cleanCiliumState:
+            - NET_ADMIN
+            - SYS_ADMIN
+            - SYS_RESOURCE
+
+      cgroup:
+        autoMount:
+          enabled: false
+        hostRoot: /sys/fs/cgroup
+
+      k8sServiceHost: localhost
+      k8sServicePort: 7445
+

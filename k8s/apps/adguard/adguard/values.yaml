@@ -1,0 +1,111 @@
+home-ops-chart:
+  image:
+    repository: adguard/adguardhome
+    tag: v0.107.73
+    pullPolicy: IfNotPresent
+
+  args:
+    - --config
+    - /opt/adguardhome/conf/AdGuardHome.yaml
+    - --work-dir
+    - /opt/adguardhome/work
+    - --no-check-update
+
+  strategy:
+    type: Recreate
+
+  ports:
+    - name: http
+      containerPort: 3000
+      protocol: TCP
+    - name: dns-udp
+      containerPort: 53
+      protocol: UDP
+    - name: dns-tcp
+      containerPort: 53
+      protocol: TCP
+
+  livenessProbe:
+    httpGet:
+      path: /
+      port: http
+    initialDelaySeconds: 30
+    periodSeconds: 30
+
+  readinessProbe:
+    httpGet:
+      path: /
+      port: http
+    initialDelaySeconds: 15
+    periodSeconds: 10
+
+  initContainers:
+    - name: config-init
+      image: busybox:1.36
+      command:
+        - sh
+        - -c
+        - |
+          CONFIG_DIR=/opt/adguardhome/conf
+          CONFIG_FILE=${CONFIG_DIR}/AdGuardHome.yaml
+          echo "Syncing config from ConfigMap..."
+          mkdir -p "${CONFIG_DIR}"
+          cp /seed/AdGuardHome.yaml "${CONFIG_FILE}"
+          echo "Config synced."
+      volumeMounts:
+        - name: conf
+          mountPath: /opt/adguardhome/conf
+        - name: config-seed
+          mountPath: /seed
+
+  service:
+    ports:
+      - port: 80
+        targetPort: http
+        protocol: TCP
+        name: http
+
+  httpRoute:
+    enabled: true
+    hostnames:
+      - adguard.schober.dev
+    parentRefs:
+      - name: internal-gateway
+        namespace: istio-ingress-internal
+        sectionName: https
+    rules:
+      - backendRefs:
+          - name: adguard-home-ops-chart
+            port: 80
+
+  authPolicy:
+    enabled: true
+
+  persistence:
+    conf:
+      enabled: true
+      existingClaim: adguard-data
+      size: 2Gi
+      mountPath: /opt/adguardhome/conf
+
+  extraVolumes:
+    - name: work
+      emptyDir: {}
+    - name: config-seed
+      configMap:
+        name: adguard-config-seed
+
+  extraVolumeMounts:
+    - name: work
+      mountPath: /opt/adguardhome/work
+
+pvc:
+  name: adguard-data
+  storageClass: longhorn
+  size: 1Gi
+
+# Values for the custom DNS LoadBalancer service template
+service:
+  dns:
+    port: 53
+    loadBalancerIP: "10.1.40.100"

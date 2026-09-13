@@ -1,0 +1,20 @@
+{{- $persistence := default dict .Values.persistence -}}
+{{- if (default false (get $persistence "enabled")) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ default "mealie-data" (get $persistence "claimName") }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  accessModes:
+    - {{ default "ReadWriteOnce" (get $persistence "accessMode") }}
+  resources:
+    requests:
+      storage: {{ default "5Gi" (get $persistence "size") }}
+  {{- with (get $persistence "storageClass") }}
+  storageClassName: {{ . }}
+  {{- end }}
+  {{- with (get $persistence "volumeName") }}
+  volumeName: {{ . }}
+  {{- end }}
+{{- end }}

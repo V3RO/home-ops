@@ -1,0 +1,22 @@
+# The apps ApplicationSet must live outside the argo HelmRelease: its CRD is
+# installed by the argo-cd chart itself, and helm cannot build a release
+# manifest referencing kinds whose CRDs only exist after that same release
+# installs.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: argo-config
+  namespace: flux-system
+spec:
+  interval: 10m
+  retryInterval: 1m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  path: ./k8s/infra/argocd/config
+  prune: true
+  dependsOn:
+    # ApplicationSet CRD comes from the argo-cd chart
+    - name: argo

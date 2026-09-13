@@ -1,0 +1,9 @@
+claimName: media-data
+size: 2048Gi
+accessMode: ReadWriteMany
+storageClass: truenas-nfs-media
+
+adopt:
+  dataset: "pvc-30342c5b-4a72-47b1-9d52-775fb4f42ff7"
+  datasetParent: hdd/k8s/n/v
+  server: 10.1.10.20

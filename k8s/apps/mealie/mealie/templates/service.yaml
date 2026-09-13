@@ -1,0 +1,17 @@
+{{- $app := default dict .Values.app -}}
+{{- $name := default "mealie" (get $app "backendServiceName") -}}
+{{- $svc := default dict .Values.service -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  type: ClusterIP
+  selector:
+    app: {{ $name }}
+  ports:
+    - name: http
+      port: {{ default 80 (get $svc "port") }}
+      targetPort: {{ default 9000 (get $svc "targetPort") }}
+      protocol: TCP

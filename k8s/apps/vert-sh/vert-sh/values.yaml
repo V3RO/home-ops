@@ -1,0 +1,49 @@
+home-ops-chart:
+  image:
+    # NOTE: PUB_VERTD_URL and PUB_HOSTNAME are baked in at build time.
+    # The upstream image points to vert.sh's own servers.
+    # To use the self-hosted vertd at vertd.schober.dev, build a custom image with:
+    #   PUB_HOSTNAME=vert.schober.dev
+    #   PUB_VERTD_URL=https://vertd.schober.dev
+    repository: ghcr.io/vert-sh/vert
+    tag: "latest"
+    pullPolicy: Always
+
+  ports:
+    - name: http
+      containerPort: 80
+      protocol: TCP
+
+  livenessProbe:
+    httpGet:
+      path: /
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 30
+
+  readinessProbe:
+    httpGet:
+      path: /
+      port: http
+    initialDelaySeconds: 5
+    periodSeconds: 10
+
+  service:
+    ports:
+      - port: 80
+        targetPort: http
+        protocol: TCP
+        name: http
+
+  httpRoute:
+    enabled: true
+    hostnames:
+      - vert.schober.dev
+    parentRefs:
+      - name: internal-gateway
+        namespace: istio-ingress-internal
+        sectionName: https
+    rules:
+      - backendRefs:
+          - name: vert-sh-home-ops-chart
+            port: 80

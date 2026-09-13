@@ -1,0 +1,5 @@
+apiVersion: v2
+name: cloudflare-issuer
+description: A Helm chart for a Cloudflare issuer using cert-manager
+type: application
+version: 1.0.0

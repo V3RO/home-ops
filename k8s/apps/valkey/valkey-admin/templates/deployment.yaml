@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: valkey-admin
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: valkey-admin
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: valkey-admin
+  template:
+    metadata:
+      labels:
+        app: valkey-admin
+    spec:
+      containers:
+        - name: valkey-admin
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: DEPLOYMENT_MODE
+              value: "K8"
+            - name: PORT
+              value: {{ .Values.service.targetPort | quote }}
+            - name: VALKEY_HOST
+              value: {{ .Values.valkey.host | quote }}
+            - name: VALKEY_PORT
+              value: {{ .Values.valkey.port | quote }}
+            - name: VALKEY_AUTH_TYPE
+              value: "password"
+            - name: VALKEY_USERNAME
+              value: {{ .Values.valkey.username | quote }}
+            - name: VALKEY_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.valkey.existingSecret }}
+                  key: {{ .Values.valkey.existingSecretPasswordKey }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}

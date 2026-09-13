@@ -1,0 +1,9 @@
+apiVersion: v2
+name: istio-base
+description: A Helm chart for Istio base resources
+type: application
+version: 1.0.0
+dependencies:
+  - name: istiod
+    version: 1.30.4
+    repository: https://istio-release.storage.googleapis.com/charts

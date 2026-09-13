@@ -1,0 +1,38 @@
+apiVersion: v1alpha1
+kind: KubeletConfig
+# https://docs.siderolabs.com/talos/v1.14/reference/configuration/kubernetes/kubeletconfig
+extraArgs:
+  rotate-server-certificates: "true"
+---
+apiVersion: v1alpha1
+kind: KubeNodeConfig
+# https://docs.siderolabs.com/talos/v1.14/reference/configuration/kubernetes/kubenodeconfig
+labels:
+  topology.kubernetes.io/region: homelab
+---
+apiVersion: v1alpha1
+kind: SysctlConfig
+# https://docs.siderolabs.com/talos/v1.14/reference/configuration/runtime/sysctlconfig
+# `params` is map[string]string — values must be quoted.
+params:
+  fs.inotify.max_user_watches: "1048576"
+  fs.inotify.max_user_instances: "8192"
+  net.core.default_qdisc: fq
+  net.ipv4.tcp_congestion_control: bbr
+  net.ipv4.tcp_fastopen: "3"
+  net.ipv4.tcp_mtu_probing: "1"
+---
+apiVersion: v1alpha1
+kind: ResolverConfig
+nameservers:
+  - address: 10.1.40.1
+---
+apiVersion: v1alpha1
+kind: UserVolumeConfig
+name: longhorn
+volumeType: directory
+---
+apiVersion: v1alpha1
+kind: UserVolumeConfig
+name: openebs-local
+volumeType: directory

@@ -1,0 +1,219 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qbittorrent
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: qbittorrent
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: qbittorrent
+  template:
+    metadata:
+      labels:
+        app: qbittorrent
+    spec:
+      dnsPolicy: "None"
+      dnsConfig:
+        nameservers:
+          - "127.0.0.1"
+      initContainers:
+        {{- if or .Values.qbittorrent.authBypass.enabled .Values.qbittorrent.apiKey.enabled .Values.qbittorrent.downloads.categories }}
+        - name: configure-qbittorrent-auth
+          image: "{{ .Values.qbittorrent.image.repository }}:{{ .Values.qbittorrent.image.tag }}"
+          imagePullPolicy: {{ .Values.qbittorrent.image.pullPolicy }}
+          {{- if .Values.qbittorrent.apiKey.enabled }}
+          env:
+            - name: QBITTORRENT_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.qbittorrent.apiKey.secretName }}
+                  key: {{ .Values.qbittorrent.apiKey.secretKey }}
+          {{- end }}
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              config_dir={{ .Values.persistence.config.mountPath }}/qBittorrent
+              config_file=${config_dir}/qBittorrent.conf
+              mkdir -p "${config_dir}"
+              touch "${config_file}"
+              tmp_file=$(mktemp)
+              awk -v authBypassEnabled='{{ if .Values.qbittorrent.authBypass.enabled }}true{{ else }}false{{ end }}' -v apiKeyEnabled='{{ if .Values.qbittorrent.apiKey.enabled }}true{{ else }}false{{ end }}' -v trusted='{{ .Values.qbittorrent.authBypass.trustedReverseProxies }}' -v whitelist='{{ .Values.qbittorrent.authBypass.authSubnetWhitelist }}' -v apiKey="${QBITTORRENT_API_KEY}" -v savePath='{{ .Values.qbittorrent.downloads.savePath }}' -v tempPath='{{ .Values.qbittorrent.downloads.tempPath }}' '
+                BEGIN {
+                  in_preferences = 0
+                  in_bittorrent = 0
+                  wrote_settings = 0
+                  wrote_session = 0
+                }
+                function write_settings() {
+                  if (!wrote_settings) {
+                    if (authBypassEnabled == "true") {
+                      print "WebUI\\ReverseProxySupportEnabled=true"
+                      print "WebUI\\TrustedReverseProxiesList=\"" trusted "\""
+                      print "WebUI\\AuthSubnetWhitelistEnabled=true"
+                      # No surrounding quotes: qBittorrent/Qt INI parses a fully
+                      # quoted multi-entry value as a single invalid subnet.
+                      print "WebUI\\AuthSubnetWhitelist=" whitelist
+                    }
+                    if (apiKeyEnabled == "true") {
+                      print "WebUI\\APIKey=\"" apiKey "\""
+                    }
+                    wrote_settings = 1
+                  }
+                }
+                function write_session() {
+                  if (!wrote_session) {
+                    print "Session\\DefaultSavePath=" savePath
+                    print "Session\\TempPathEnabled=true"
+                    print "Session\\TempPath=" tempPath
+                    wrote_session = 1
+                  }
+                }
+                {
+                  if ($0 == "[Preferences]") {
+                    print
+                    in_preferences = 1
+                    in_bittorrent = 0
+                    write_settings()
+                    next
+                  }
+                  if ($0 == "[BitTorrent]") {
+                    print
+                    in_bittorrent = 1
+                    in_preferences = 0
+                    write_session()
+                    next
+                  }
+                  if ((in_preferences || in_bittorrent) && $0 ~ /^\[/) {
+                    in_preferences = 0
+                    in_bittorrent = 0
+                  }
+                  if (index($0, "WebUI\\ReverseProxySupportEnabled=") == 1 || index($0, "WebUI\\TrustedReverseProxiesList=") == 1 || index($0, "WebUI\\AuthSubnetWhitelistEnabled=") == 1 || index($0, "WebUI\\AuthSubnetWhitelist=") == 1 || index($0, "WebUI\\APIKey=") == 1) {
+                    next
+                  }
+                  if (in_bittorrent && (index($0, "Session\\DefaultSavePath=") == 1 || index($0, "Session\\TempPathEnabled=") == 1 || index($0, "Session\\TempPath=") == 1)) {
+                    next
+                  }
+                  print
+                }
+                END {
+                  if (!wrote_settings) {
+                    print "[Preferences]"
+                    write_settings()
+                  }
+                  if (!wrote_session) {
+                    print "[BitTorrent]"
+                    write_session()
+                  }
+                }
+              ' "${config_file}" > "${tmp_file}"
+              mv "${tmp_file}" "${config_file}"
+              {{- if .Values.qbittorrent.downloads.categories }}
+              {{- $cats := dict }}
+              {{- range $name, $path := .Values.qbittorrent.downloads.categories }}
+              {{- $_ := set $cats $name (dict "save_path" $path) }}
+              {{- end }}
+              categories_file=${config_dir}/categories.json
+              [ -f "${categories_file}" ] || echo '{}' > "${categories_file}"
+              tmp_file=$(mktemp)
+              jq --argjson cats '{{ $cats | toJson }}' '. * $cats' "${categories_file}" > "${tmp_file}"
+              mv "${tmp_file}" "${categories_file}"
+              {{- end }}
+              mkdir -p {{ .Values.qbittorrent.downloads.savePath }} {{ .Values.qbittorrent.downloads.tempPath }}{{ range .Values.qbittorrent.downloads.categories }} {{ . }}{{ end }}{{ range .Values.qbittorrent.mediaDirs }} {{ . }}{{ end }}
+              chown -R {{ .Values.qbittorrent.env.PUID }}:{{ .Values.qbittorrent.env.PGID }} {{ .Values.qbittorrent.downloads.savePath }}{{ range .Values.qbittorrent.mediaDirs }} {{ . }}{{ end }}
+          volumeMounts:
+            - name: config
+              mountPath: {{ .Values.persistence.config.mountPath }}
+            - name: data
+              mountPath: {{ .Values.persistence.data.mountPath }}
+        {{- end }}
+        - name: gluetun
+          image: "{{ .Values.gluetun.image.repository }}:{{ .Values.gluetun.image.tag }}"
+          imagePullPolicy: {{ .Values.gluetun.image.pullPolicy }}
+          restartPolicy: Always
+          securityContext:
+            capabilities:
+              add:
+                - NET_ADMIN
+          envFrom:
+            - configMapRef:
+                name: qbittorrent-gluetun
+          env:
+            - name: WIREGUARD_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: gluetun-vpn-secret
+                  key: WIREGUARD_PRIVATE_KEY
+          ports:
+            - name: http-proxy
+              containerPort: 8888
+              protocol: TCP
+            - name: control
+              containerPort: {{ .Values.gluetun.healthCheck.port }}
+              protocol: TCP
+          startupProbe:
+            exec:
+              command:
+                - /gluetun-entrypoint
+                - healthcheck
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 30
+          livenessProbe:
+            exec:
+              command:
+                - /gluetun-entrypoint
+                - healthcheck
+            periodSeconds: 30
+          readinessProbe:
+            exec:
+              command:
+                - /gluetun-entrypoint
+                - healthcheck
+            periodSeconds: 10
+      containers:
+        - name: qbittorrent
+          image: "{{ .Values.qbittorrent.image.repository }}:{{ .Values.qbittorrent.image.tag }}"
+          imagePullPolicy: {{ .Values.qbittorrent.image.pullPolicy }}
+          env:
+            - name: PUID
+              value: {{ .Values.qbittorrent.env.PUID | quote }}
+            - name: PGID
+              value: {{ .Values.qbittorrent.env.PGID | quote }}
+            - name: TZ
+              value: {{ .Values.qbittorrent.env.TZ | quote }}
+            - name: WEBUI_PORT
+              value: {{ .Values.qbittorrent.env.WEBUI_PORT | quote }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.qbittorrent.service.targetPort }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          volumeMounts:
+            - name: config
+              mountPath: {{ .Values.persistence.config.mountPath }}
+            - name: data
+              mountPath: {{ .Values.persistence.data.mountPath }}
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.config.claimName }}
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.data.claimName }}

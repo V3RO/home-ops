@@ -1,0 +1,53 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: external-secrets
+  namespace: flux-system
+spec:
+  interval: 5m
+  timeout: 10m
+  chart:
+    spec:
+      chart: ./k8s/infra/external-secrets/external-secrets
+      sourceRef:
+        kind: GitRepository
+        name: flux-system
+        namespace: flux-system
+      reconcileStrategy: Revision
+  releaseName: external-secrets
+  targetNamespace: external-secrets
+  install:
+    remediation:
+      retries: 3
+    crds: CreateReplace
+    # The bitwarden-sdk-server pod needs the TLS certificate issued via the
+    # issuers tier, which depends on this release - waiting would deadlock.
+    disableWait: true
+  upgrade:
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+    crds: CreateReplace
+    disableWait: true
+  values:
+    external-secrets:
+      bitwarden-sdk-server:
+        enabled: true
+      namespaceOverride: "external-secrets"
+      image:
+        tls:
+          enabled: true
+          volumeMounts:
+            - mountPath: "/certs"
+              name: "bitwarden-tls-certs"
+          volumes:
+            - name: "bitwarden-tls-certs"
+              secret:
+                secretName: "bitwarden-tls-certs"
+                items:
+                  - key: "tls.crt"
+                    path: "cert.pem"
+                  - key: "tls.key"
+                    path: "key.pem"
+                  - key: "ca.crt"
+                    path: "ca.pem"

@@ -1,0 +1,9 @@
+apiVersion: v2
+name: VersityGW
+description: A Helm chart for VersityGW
+type: application
+version: 0.1.0
+dependencies:
+  - name: versitygw
+    version: 0.3.5
+    repository: oci://ghcr.io/versity/versitygw/charts

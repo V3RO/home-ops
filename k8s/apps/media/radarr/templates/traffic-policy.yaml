@@ -1,0 +1,39 @@
+{{- if and .Values.app.authentik.enabled .Values.app.host }}
+{{- $extAuth := .Values.app.authentik.extAuth }}
+{{- $extName := printf "%s-authentik" .Values.app.backendServiceName }}
+apiVersion: gateway.kgateway.dev/v1alpha1
+kind: GatewayExtension
+metadata:
+  name: {{ $extName }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  extAuth:
+    httpService:
+      backendRef:
+        name: {{ .Values.app.authentik.outpostService.name }}
+        namespace: {{ .Values.app.authentik.outpostService.namespace }}
+        port: {{ .Values.app.authentik.outpostService.port }}
+      pathPrefix: {{ $extAuth.pathPrefix }}
+      authorizationResponse:
+        headersToBackend:
+          {{- toYaml $extAuth.headersToBackend | nindent 10 }}
+        headersToClientOnSuccess:
+          {{- toYaml $extAuth.headersToClientOnSuccess | nindent 10 }}
+    headersToForward:
+      {{- toYaml $extAuth.headersToForward | nindent 6 }}
+---
+apiVersion: gateway.kgateway.dev/v1alpha1
+kind: TrafficPolicy
+metadata:
+  name: {{ printf "%s-authz" .Values.app.backendServiceName }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: httproute-{{ .Values.app.backendServiceName }}
+      sectionName: app
+  extAuth:
+    extensionRef:
+      name: {{ $extName }}
+{{- end }}

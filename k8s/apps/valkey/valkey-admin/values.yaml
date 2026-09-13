@@ -1,0 +1,60 @@
+image:
+  repository: valkey/valkey-admin
+  tag: "1.0.1"
+  pullPolicy: IfNotPresent
+
+service:
+  port: 8080
+  targetPort: 8080
+
+# Connects to the shared Valkey instance in the same namespace (k8s/infra/valkey/valkey)
+# using the existing "default" ACL user's credentials.
+valkey:
+  host: valkey.valkey.svc.cluster.local
+  port: 6379
+  username: default
+  existingSecret: valkey-auth
+  existingSecretPasswordKey: valkey-password
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+
+app:
+  host: valkey-admin.schober.dev
+  gateway:
+    name: internal-gateway
+    namespace: istio-ingress-internal
+    sectionName: https
+  backendServiceName: valkey-admin
+  servicePort: 8080
+  authentik:
+    enabled: true
+    outpostService:
+      name: ak-outpost-proxy
+      namespace: authentik
+      port: 9000
+    extAuth:
+      pathPrefix: /outpost.goauthentik.io/auth/envoy
+      headersToForward:
+        - cookie
+      headersToBackend:
+        - set-cookie
+        - x-authentik-username
+        - x-authentik-groups
+        - x-authentik-entitlements
+        - x-authentik-email
+        - x-authentik-name
+        - x-authentik-uid
+        - x-authentik-jwt
+        - x-authentik-meta-jwks
+        - x-authentik-meta-outpost
+        - x-authentik-meta-provider
+        - x-authentik-meta-app
+        - x-authentik-meta-version
+      headersToClientOnSuccess:
+        - cookie

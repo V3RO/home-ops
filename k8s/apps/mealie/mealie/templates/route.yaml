@@ -1,0 +1,30 @@
+{{- $app := default dict .Values.app -}}
+{{- if (get $app "host") }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: httproute-{{ default "mealie" (get $app "backendServiceName") }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  hostnames:
+    - {{ get $app "host" }}
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: {{ default "internal-gateway" (get (default dict (get $app "gateway")) "name") }}
+      namespace: {{ default "istio-ingress-internal" (get (default dict (get $app "gateway")) "namespace") }}
+      {{- with (get (default dict (get $app "gateway")) "sectionName") }}
+      sectionName: {{ . }}
+      {{- end }}
+  rules:
+    - backendRefs:
+        - group: ""
+          kind: Service
+          name: {{ default "mealie" (get $app "backendServiceName") }}
+          port: {{ default 80 (get $app "servicePort") }}
+          weight: 1
+      matches:
+        - path:
+            type: PathPrefix
+            value: /
+{{- end }}

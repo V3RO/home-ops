@@ -1,0 +1,21 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: bitwarden-ca
+  namespace: {{ .Release.Namespace }}
+spec:
+  commonName: bitwarden-ca
+  isCA: true
+  secretName: bitwarden-ca-secret
+  subject:
+    organizations:
+      - external-secrets.io
+  privateKey:
+    algorithm: RSA
+    encoding: PKCS8
+    size: 2048
+    rotationPolicy: Always
+  issuerRef:
+    name: bitwarden-bootstrap-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io

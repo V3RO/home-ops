@@ -1,0 +1,9 @@
+apiVersion: v2
+name: cnpg-operator
+description: A Helm chart for CloudNativePG Operator
+type: application
+version: 1.0.0
+dependencies:
+  - name: plugin-barman-cloud
+    version: 0.7.0
+    repository: https://cloudnative-pg.github.io/charts

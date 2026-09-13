@@ -1,0 +1,164 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: longhorn
+  namespace: flux-system
+spec:
+  interval: 5m
+  timeout: 15m
+  chart:
+    spec:
+      chart: ./k8s/infra/longhorn-system/longhorn
+      sourceRef:
+        kind: GitRepository
+        name: flux-system
+        namespace: flux-system
+      reconcileStrategy: Revision
+  releaseName: longhorn
+  targetNamespace: longhorn-system
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    force: true
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+  values:
+    longhorn:
+      defaultSettings:
+        # Data path on the host. Lives on EPHEMERAL (single NVMe per node),
+        # provided by the `longhorn` UserVolumeConfig in talos/patches/machine.yaml
+        # (Talos mounts user volumes at /var/mnt/<name> and propagates them
+        # into the kubelet container).
+        defaultDataPath: /var/mnt/longhorn
+
+        # 2 replicas per volume: survives a single node loss without tripling
+        # disk usage of tiny config volumes on a 3-node cluster.
+        defaultReplicaCount: 2
+
+        # Reserve 10% of the disk for metadata and OS headroom; do not
+        # thin-provision beyond physical capacity.
+        storageMinimalAvailablePercentage: 10
+        storageOverProvisioningPercentage: 100
+
+        # Clean up detached volumes whose pod was deleted unexpectedly so the
+        # volume does not stay stuck in "attaching" state.
+        autoDeletePodWhenVolumeDetachedUnexpectedly: true
+
+        nodeDrainPolicy: always-allow
+
+        # Force-delete pods stranded on a down node so their RWO volume can
+        # detach and reattach elsewhere. Without this (default: do-nothing)
+        # the pod hangs in Terminating forever - the dead kubelet never
+        # confirms deletion - the VolumeAttachment is never released, and the
+        # replacement pod fails with Multi-Attach / FailedAttachVolume.
+        nodeDownPodDeletionPolicy: delete-both-statefulset-and-deployment-pod
+
+        # Do NOT automatically delete orphaned replica data.
+        # Without this, Longhorn would delete replica directories on disk that
+        # have no corresponding Replica CR (e.g. after a cluster rebuild the
+        # CRs are gone while data survives), causing permanent data loss.
+        # Orphaned replicas stay available for manual recovery via the UI.
+        orphanResourceAutoDeletion: false
+
+        # Allow replica re-placement co-located with the primary as a fallback
+        # (required to rebuild a second replica while a node is down).
+        replicaSoftAntiAffinity: true
+
+        concurrentAutomaticEngineUpgradePerNodeLimit: 1
+
+        logLevel: Info
+
+        # Data engines: classic V1 (iSCSI) only. The V2 (SPDK) engine would
+        # need dedicated CPU/hugepages setup on Talos - not needed here.
+        v1DataEngine: true
+        v2DataEngine: false
+
+        taintToleration: "node-role.kubernetes.io/control-plane:NoSchedule"
+
+      # S3 backup target (versitygw), wired as the chart-managed "default"
+      # BackupTarget (referenced by the StorageClass). Bucket + IAM user +
+      # credential Secret are provisioned by templates/backup-s3.yaml.
+#      defaultBackupStore:
+#        backupTarget: s3://longhorn-backups@homelab/
+#        backupTargetCredentialSecret: longhorn-backup-credentials
+#        pollInterval: 300
+
+      # -------------------------------------------------------------------
+      # Dynamic StorageClass `longhorn`. local-path stays the cluster default;
+      # workloads opt in explicitly. longhorn-static (no-provisioner, for
+      # pre-created volumes) was only needed for the old tofu-provisioned
+      # volumes and is intentionally not recreated.
+      # -------------------------------------------------------------------
+      persistence:
+        createStorageClass: true
+        defaultClass: false
+        defaultFsType: ext4
+        defaultClassReplicaCount: 2
+        reclaimPolicy: Retain
+        volumeBindingMode: WaitForFirstConsumer
+        migratable: true
+
+      longhornManager:
+        tolerations:
+          - key: node-role.kubernetes.io/control-plane
+            effect: NoSchedule
+        priorityClass: system-node-critical
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            memory: 512Mi
+
+      longhornDriver:
+        tolerations:
+          - key: node-role.kubernetes.io/control-plane
+            effect: NoSchedule
+        priorityClass: system-cluster-critical
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            memory: 256Mi
+
+      longhornUI:
+        tolerations:
+          - key: node-role.kubernetes.io/control-plane
+            effect: NoSchedule
+        replicas: 1
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            memory: 128Mi
+
+      csi:
+        podAntiAffinityPreset: soft
+
+      # Prometheus is the community chart (no prometheus-operator CRDs), so
+      # ServiceMonitor would be ignored - keep disabled.
+      metrics:
+        serviceMonitor:
+          enabled: false
+
+      ingress:
+        enabled: false
+
+      # Must be disabled with Cilium: restrictInternalTraffic allows ingress
+      # to instance-manager pods only from Longhorn pods, but the iSCSI
+      # initiator (iscsiadm) runs nsenter'ed into the host network namespace
+      # -> "host" identity, which ipBlock/podSelector rules cannot match.
+      # Result: engine stuck "starting", iscsiadm sendtargets times out,
+      # CSI attach fails (FailedAttachVolume).
+      networkPolicies:
+        restrictInternalTraffic: false
+
+      # Pre-upgrade checker job is disabled for GitOps-managed upgrades
+      # (recommended by the chart), keep the version check.
+      preUpgradeChecker:
+        jobEnabled: false
+        upgradeVersionCheck: true

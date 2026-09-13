@@ -1,0 +1,35 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: seerr-allow-egress
+  namespace: {{ .Release.Namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: seerr
+      app.kubernetes.io/instance: seerr
+  policyTypes:
+    - Egress
+  egress:
+    # DNS
+    - ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # CNPG postgres
+    - to:
+        - podSelector:
+            matchLabels:
+              cnpg.io/cluster: {{ .Values.postgres.clusterName }}
+      ports:
+        - protocol: TCP
+          port: 5432
+    # TMDb, in-cluster HTTP services (jellyfin, sonarr, radarr, ...)
+    - ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443
+{{- end }}

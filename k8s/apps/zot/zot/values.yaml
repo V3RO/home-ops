@@ -1,0 +1,71 @@
+zot:
+  service:
+    type: ClusterIP
+  persistence: true
+  pvc:
+    create: true
+    storage: 10Gi
+    storageClassName: longhorn
+  mountConfig: true
+  configFiles:
+    config.json: |-
+      {
+          "storage": { "rootDirectory": "/var/lib/registry" },
+          "log": { "level": "debug" },
+          "extensions": {
+              "search": {
+                  "enable": true
+              },
+              "ui": {
+                  "enable": true
+              }
+          },
+          "http": {
+              "address": "0.0.0.0",
+              "port": "5000",
+              "externalUrl": "https://zot.schober.dev",
+              "auth": {
+                  "openid": {
+                      "providers": {
+                          "oidc": {
+                              "credentialsFile": "/secrets/zot/oidc-credentials.json",
+                              "issuer": "https://auth.schober.dev/application/o/zot/",
+                              "keypath": "",
+                              "scopes": ["openid", "profile", "email", "groups"]
+                          }
+                      }
+                  }
+              },
+              "accessControl": {
+                  "repositories": {
+                      "**": {
+                          "policies": [
+                              {
+                                  "groups": ["homelab-admins"],
+                                  "actions": ["read", "create"]
+                              }
+                          ],
+                        "defaultPolicy": ["read"]
+                     }
+                  },
+                  "adminPolicy": {
+                      "groups": ["homelab-admins"],
+                      "actions": ["read", "create", "update", "delete"]
+                  }
+              }
+          }
+      }
+  externalSecrets:
+    - secretName: zot-oidc-credentials
+      mountPath: /secrets/zot
+  mountSecret: true
+  secretFiles: {}
+  extraVolumes:
+    - name: ca-bundle
+      configMap:
+        name: ca-bundle
+  extraVolumeMounts:
+    - name: ca-bundle
+      mountPath: /etc/ssl/certs/ca-certificates.crt
+      subPath: ca-bundle.crt
+      readOnly: true

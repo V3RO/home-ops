@@ -1,0 +1,9 @@
+apiVersion: v2
+name: kiali
+description: "Kiali service mesh observability for homelab"
+type: application
+version: 0.1.0
+dependencies:
+  - name: kiali-server
+    repository: https://kiali.org/helm-charts
+    version: 2.12.0

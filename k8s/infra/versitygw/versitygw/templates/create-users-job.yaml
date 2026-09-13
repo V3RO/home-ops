@@ -1,0 +1,106 @@
+{{- /*
+Every versitygw account this chart manages, from both client lists:
+
+  id      -- names the generated Secret (<id>-versitygw-generated) and the
+             env-var prefix the script reads
+  bucket  -- the bucket the credential is verified against
+
+cnpgClients share one prefix-partitioned bucket; dataClients each get their
+own (see data-client-credentials.yaml).
+*/}}
+{{- $clients := list }}
+{{- range .Values.cnpgClients }}
+{{- $clients = append $clients (dict "id" . "bucket" "cnpg-backups") }}
+{{- end }}
+{{- range .Values.dataClients }}
+{{- $clients = append $clients (dict "id" .name "bucket" .bucket) }}
+{{- end }}
+{{- $rows := list }}
+{{- range $clients }}
+{{- $rows = append $rows (printf "%s %s" .id .bucket) }}
+{{- end }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  # A Job's spec.template is IMMUTABLE and Flux applies server-side, so an
+  # edit cannot land in place: it fails with "field is immutable" and rolls
+  # the whole HelmRelease back. (upgrade.force does NOT save us here -- the
+  # HelmRelease CRD says it outright: "This field is ignored for server-side
+  # apply". The older fixed-name Jobs only appeared to work because their
+  # content never changed, so the apply was a no-op.)
+  #
+  # So the name carries a hash of everything that determines the pod: the
+  # script ConfigMap, and the client list passed to it. Change either and
+  # Helm creates a new Job and prunes the old one; change neither and the
+  # name is stable, so nothing re-runs.
+  name: versitygw-create-users-{{ printf "%s|%s"
+        ($.Files.Get "files/create-users.sh" | sha256sum)
+        (join "," $rows) | sha256sum | trunc 8 }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  # Generous because these Jobs are scheduled alongside versitygw on a
+  # fresh cluster. The scripts wait for the gateway themselves; this is
+  # the outer guard for the pod dying some other way.
+  backoffLimit: 6
+  # Keep a completed Job long enough to read its logs, then let it go so
+  # renamed generations do not pile up. Note this also sets how often the Job
+  # re-runs: once garbage collected, the next upgrade recreates it.
+  ttlSecondsAfterFinished: {{ .Values.jobTTLSecondsAfterFinished }}
+  template:
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 100
+        runAsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+        - name: scripts
+          configMap:
+            name: versitygw-setup-scripts
+      containers:
+        - name: create-users
+          image: curlimages/curl:8.11.1
+          command: ["sh", "/scripts/create-users.sh"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+              readOnly: true
+          env:
+            - name: ADMIN
+              value: http://versitygw.{{ .Release.Namespace }}.svc.cluster.local:7071
+            - name: S3
+              value: http://versitygw.{{ .Release.Namespace }}.svc.cluster.local:7070
+            - name: SIGV4
+              value: aws:amz:{{ .Values.versitygw.gateway.region }}:s3
+            - name: CLIENTS
+              value: |-
+{{ join "\n" $rows | indent 16 }}
+            - name: ROOT_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: versitygw-credentials
+                  key: rootAccessKeyId
+            - name: ROOT_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: versitygw-credentials
+                  key: rootSecretAccessKey
+            {{- range $clients }}
+            {{- $prefix := .id | upper | replace "-" "_" }}
+            - name: {{ $prefix }}_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .id }}-versitygw-generated
+                  key: accessKeyId
+            - name: {{ $prefix }}_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .id }}-versitygw-generated
+                  key: secretAccessKey
+            {{- end }}

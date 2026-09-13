@@ -1,0 +1,149 @@
+# --- Upstream Immich chart values (nested under `immich:` dependency key) ---
+immich:
+  # Shared env vars across all Immich components
+  controllers:
+    main:
+      containers:
+        main:
+          env:
+            IMMICH_ALLOW_SETUP: false
+            DB_HOSTNAME: immich-postgres-rw.immich.svc.cluster.local
+            DB_PORT: "5432"
+            DB_DATABASE_NAME: immich
+            DB_USERNAME: immich
+            DB_PASSWORD:
+              valueFrom:
+                secretKeyRef:
+                  name: cnpg-immich-credentials
+                  key: password
+            REDIS_HOSTNAME: valkey.valkey.svc.cluster.local
+            REDIS_PORT: "6379"
+            REDIS_DBINDEX: "3"
+            REDIS_PASSWORD:
+              valueFrom:
+                secretKeyRef:
+                  name: immich-secret
+                  key: REDIS_PASSWORD
+
+  immich:
+    persistence:
+      library:
+        existingClaim: immich-library
+    metrics:
+      enabled: false
+    existingConfiguration: immich-config
+    configurationKind: Secret
+
+  # Disable built-in Valkey (use shared cluster Valkey)
+  valkey:
+    enabled: false
+
+  # Server component
+  server:
+    ingress:
+      main:
+        enabled: false  # using Gateway API HTTPRoute instead
+    controllers:
+      main:
+        containers:
+          main:
+            env:
+              NODE_EXTRA_CA_CERTS: /etc/ssl/certs/ca-certificates.crt
+    persistence:
+      ca-bundle:
+        enabled: true
+        type: configMap
+        name: ca-bundle
+        globalMounts:
+          - path: /etc/ssl/certs/ca-certificates.crt
+            subPath: ca-bundle.crt
+            readOnly: true
+
+  # Machine Learning component (Intel OpenVINO for iGPU acceleration)
+  machine-learning:
+    controllers:
+      main:
+        containers:
+          main:
+            image:
+              repository: ghcr.io/immich-app/immich-machine-learning
+              tag: v2.6.3-openvino
+            env:
+              MACHINE_LEARNING_WORKER_TIMEOUT: "300"
+            resources:
+              limits:
+                gpu.intel.com/i915: "1"
+        pod:
+          nodeSelector:
+            intel.feature.node.kubernetes.io/gpu: "true"
+    persistence:
+      cache:
+        enabled: true
+        size: 5Gi
+        type: persistentVolumeClaim
+        accessMode: ReadWriteOnce
+        storageClass: longhorn
+        existingClaim: immich-ml-cache
+      ca-bundle:
+        enabled: true
+        type: configMap
+        name: ca-bundle
+        globalMounts:
+          - path: /etc/ssl/certs/ca-certificates.crt
+            subPath: ca-bundle.crt
+            readOnly: true
+
+# --- Custom template values (platform integration) ---
+
+# CNPG PostgreSQL with VectorChord extension
+postgres:
+  enabled: true
+  clusterName: immich-postgres
+  instances: 3
+  imageName: ghcr.io/tensorchord/cloudnative-vectorchord:17.5-0.4.3
+  storage:
+    class: openebs-hostpath
+    size: 10Gi
+  database: immich
+  owner: immich
+  sharedPreloadLibraries:
+    - "vchord.so"
+  postInitSQL:
+    - CREATE EXTENSION IF NOT EXISTS vchord CASCADE;
+    - CREATE EXTENSION IF NOT EXISTS earthdistance CASCADE;
+  restore: true
+
+# Gateway API HTTPRoute
+app:
+  host: immich.schober.dev
+  gateway:
+    name: internal-gateway
+    namespace: istio-ingress-internal
+    sectionName: https
+  backendServiceName: immich-server
+  servicePort: 2283
+
+# PVCs (managed by custom template)
+persistence:
+  immich-library:
+    enabled: true
+    accessMode: ReadWriteMany
+    size: 100Gi
+    storageClass: truenas-nfs-media
+  immich-ml-cache:
+    enabled: true
+    accessMode: ReadWriteOnce
+    size: 5Gi
+    storageClass: longhorn
+
+# External Secrets (Bitwarden)
+externalSecret:
+  enabled: true
+  refreshInterval: 1h0m0s
+  secretStoreRef:
+    name: bitwarden-app-secrets
+    kind: ClusterSecretStore
+  keys:
+    redisPassword: valkey-password
+    oidcClientSecret: authentik-immich-client-secret
+    cnpgPassword: immich-db-secret

@@ -1,0 +1,49 @@
+apiVersion: telemetry.istio.io/v1
+kind: Telemetry
+metadata:
+  name: mesh-default
+  namespace: {{ .Release.Namespace }}
+spec:
+  tracing:
+    - providers:
+        - name: alloy-otlp
+      randomSamplingPercentage: 100.0
+  accessLogging:
+    - providers:
+        - name: alloy-otlp-logs
+---
+apiVersion: telemetry.istio.io/v1
+kind: Telemetry
+metadata:
+  name: mesh-gatewayclass-waypoint
+  namespace: {{ .Release.Namespace }}
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: GatewayClass
+      name: istio-waypoint
+  tracing:
+    - providers:
+        - name: alloy-otlp
+      randomSamplingPercentage: 100.0
+  accessLogging:
+    - providers:
+        - name: alloy-otlp-logs
+---
+apiVersion: telemetry.istio.io/v1
+kind: Telemetry
+metadata:
+  name: mesh-gatewayclass-istio
+  namespace: {{ .Release.Namespace }}
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: GatewayClass
+      name: istio
+  tracing:
+    - providers:
+        - name: alloy-otlp
+      randomSamplingPercentage: 100.0
+  accessLogging:
+    - providers:
+        - name: alloy-otlp-logs

@@ -1,0 +1,48 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ .Values.postgres.clusterName }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  instances: {{ .Values.postgres.instances }}
+  imageName: {{ .Values.postgres.imageName }}
+  storage:
+    pvcTemplate:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: {{ .Values.postgres.storage.size }}
+      {{- with .Values.postgres.storage.class }}
+      storageClassName: {{ . }}
+      {{- end }}
+  managed:
+    roles:
+      - name: {{ .Values.postgres.owner }}
+        ensure: present
+        login: true
+        passwordSecret:
+          name: cnpg-{{ .Values.postgres.owner }}-credentials
+  bootstrap:
+    {{- if .Values.postgres.restore.enabled }}
+    recovery:
+      source: origin
+    {{- else }}
+    initdb:
+      database: {{ .Values.postgres.database }}
+      owner: {{ .Values.postgres.owner }}
+    {{- end }}
+  {{- if .Values.postgres.restore.enabled }}
+  externalClusters:
+    - name: origin
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        parameters:
+          barmanObjectName: {{ .Values.postgres.owner }}-versitygw-store
+  {{- end }}
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      enabled: true
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: {{ .Values.postgres.owner }}-versitygw-store

@@ -1,0 +1,81 @@
+{{- /*
+One bucket per data client, each with a policy naming only that client.
+Deliberately not the shared-bucket-with-prefixes shape used for CNPG backups
+(BOOTSTRAP.md "Sharing one bucket across clients") -- these hold primary
+application data, so isolation is worth the extra buckets.
+*/}}
+{{- range .Values.dataClients }}
+{{- $client := . }}
+{{- $policy := dict "Version" "2012-10-17" "Statement" (list
+      (dict
+        "Effect" "Allow"
+        "Principal" (dict "AWS" (list $client.name))
+        "Action" (list "s3:PutObject" "s3:GetObject" "s3:DeleteObject")
+        "Resource" (list (printf "arn:aws:s3:::%s/*" $client.bucket)))
+      (dict
+        "Effect" "Allow"
+        "Principal" (dict "AWS" (list $client.name))
+        "Action" (list "s3:ListBucket")
+        "Resource" (list (printf "arn:aws:s3:::%s" $client.bucket)))) | toJson }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  # Hashed because spec.template is immutable; see versitygw-create-users.
+  name: {{ $client.bucket }}-bucket-setup-{{ printf "%s|%s"
+        ($.Files.Get "files/bucket-setup.sh" | sha256sum)
+        $policy | sha256sum | trunc 8 }}
+  namespace: {{ $.Release.Namespace }}
+spec:
+  # Generous because these Jobs are scheduled alongside versitygw on a
+  # fresh cluster. The scripts wait for the gateway themselves; this is
+  # the outer guard for the pod dying some other way.
+  backoffLimit: 6
+  ttlSecondsAfterFinished: {{ $.Values.jobTTLSecondsAfterFinished }}
+  template:
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 100
+        runAsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+        - name: scripts
+          configMap:
+            name: versitygw-setup-scripts
+      containers:
+        - name: bucket-setup
+          image: curlimages/curl:8.11.1
+          command: ["sh", "/scripts/bucket-setup.sh"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+              readOnly: true
+          env:
+            - name: ADMIN
+              value: http://versitygw.{{ $.Release.Namespace }}.svc.cluster.local:7071
+            - name: S3
+              value: http://versitygw.{{ $.Release.Namespace }}.svc.cluster.local:7070
+            - name: SIGV4
+              value: aws:amz:{{ $.Values.versitygw.gateway.region }}:s3
+            - name: BUCKET
+              value: {{ $client.bucket | quote }}
+            - name: POLICY_JSON
+              value: {{ $policy | quote }}
+            - name: ROOT_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: versitygw-credentials
+                  key: rootAccessKeyId
+            - name: ROOT_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: versitygw-credentials
+                  key: rootSecretAccessKey
+---
+{{- end }}

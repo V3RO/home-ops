@@ -1,0 +1,43 @@
+apiVersion: v1alpha1
+kind: KubeNodeConfig
+taints:
+  node-role.kubernetes.io/control-plane:
+    $patch: delete
+---
+# Was cluster.proxy.disabled — Cilium replaces kube-proxy.
+apiVersion: v1alpha1
+kind: KubeProxyConfig
+enabled: false
+---
+# Was cluster.network.cni.name=none — drop the generated Flannel document
+# so no CNI is deployed and Cilium owns the pod network.
+apiVersion: v1alpha1
+kind: KubeFlannelCNIConfig
+$patch: delete
+---
+# Was cluster.extraManifests — one document per URL now.
+apiVersion: v1alpha1
+kind: KubeExternalManifestConfig
+name: kubelet-serving-cert-approver
+url: https://raw.githubusercontent.com/alex1989hu/kubelet-serving-cert-approver/main/deploy/standalone-install.yaml
+---
+apiVersion: v1alpha1
+kind: KubeExternalManifestConfig
+name: metrics-server
+url: https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+---
+apiVersion: v1alpha1
+kind: KubeControllerManagerConfig
+extraArgs:
+  bind-address: 0.0.0.0
+---
+apiVersion: v1alpha1
+kind: KubeSchedulerConfig
+extraArgs:
+  bind-address: 0.0.0.0
+---
+# etcd has no dedicated document yet, so it stays under v1alpha1.
+cluster:
+  etcd:
+    extraArgs:
+      listen-metrics-urls: http://0.0.0.0:2381

@@ -1,0 +1,204 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: alloy
+  namespace: flux-system
+spec:
+  interval: 5m
+  timeout: 10m
+  chart:
+    spec:
+      chart: ./k8s/infra/monitoring/alloy
+      sourceRef:
+        kind: GitRepository
+        name: flux-system
+        namespace: flux-system
+      reconcileStrategy: Revision
+  releaseName: alloy
+  targetNamespace: monitoring
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+  dependsOn:
+    - name: prometheus
+      namespace: flux-system
+  values:
+    alloy:
+      controller:
+        type: "deployment"
+      alloy:
+        extraPorts:
+          - name: grpc-otlp
+            port: 4317
+            targetPort: 4317
+            protocol: TCP
+          - name: http-otlp
+            port: 4318
+            targetPort: 4318
+            protocol: TCP
+        configMap:
+          content: |
+            // Prometheus remote write to local Prometheus
+            prometheus.remote_write "default" {
+              endpoint {
+                url = "http://prometheus-server.monitoring.svc.cluster.local/api/v1/write"
+              }
+            }
+
+            // Loki log forwarding
+            loki.write "default" {
+              endpoint {
+                url = "http://loki.monitoring.svc.cluster.local:3100/loki/api/v1/push"
+              }
+            }
+
+            // Tempo traces forwarding (insecure TLS for homelab simplicity)
+            otelcol.exporter.otlp "default" {
+              client {
+                endpoint = "tempo.monitoring.svc.cluster.local:4317"
+                tls {
+                  insecure = true
+                }
+              }
+            }
+
+            // OTEL receiver for incoming traces from Istio and other services
+            otelcol.receiver.otlp "default" {
+              grpc {
+                endpoint = "0.0.0.0:4317"
+              }
+              http {
+                endpoint = "0.0.0.0:4318"
+              }
+
+              output {
+                traces  = [otelcol.exporter.otlp.default.input]
+                logs    = [otelcol.processor.batch.default.input]
+                metrics = [otelcol.exporter.otlp.default.input]
+              }
+            }
+
+            // Batch processor for logs before sending to Loki
+            otelcol.processor.batch "default" {
+              output {
+                logs = [otelcol.exporter.loki.default.input]
+              }
+            }
+
+            // Loki exporter for OTLP logs
+            otelcol.exporter.loki "default" {
+              forward_to = [loki.write.default.receiver]
+            }
+
+            // Kubernetes service discovery for scraping metrics
+            discovery.kubernetes "pods" {
+              role = "pod"
+            }
+
+            // Scrape metrics from discovered pods with prometheus.io/scrape annotation
+            discovery.relabel "pods" {
+              targets = discovery.kubernetes.pods.targets
+
+              // Keep only pods with prometheus.io/scrape annotation set to true
+              rule {
+                source_labels = ["__meta_kubernetes_pod_annotation_prometheus_io_scrape"]
+                action        = "keep"
+                regex         = "true"
+              }
+
+              // Use custom scrape path if specified
+              rule {
+                source_labels = ["__meta_kubernetes_pod_annotation_prometheus_io_path"]
+                action        = "replace"
+                target_label  = "__metrics_path__"
+                regex         = "(.+)"
+              }
+
+              // Use custom port if specified (captures IP:port from __address__ and replaces port with annotation value)
+              rule {
+                source_labels = ["__address__", "__meta_kubernetes_pod_annotation_prometheus_io_port"]
+                action        = "replace"
+                regex         = "([^:]+)(?::\\d+)?;(\\d+)"
+                replacement   = "$1:$2"
+                target_label  = "__address__"
+              }
+            }
+
+            prometheus.scrape "pods" {
+              targets    = discovery.relabel.pods.output
+              forward_to = [prometheus.remote_write.default.receiver]
+            }
+
+            // Kubernetes service discovery for pod logs
+            discovery.kubernetes "pod_logs" {
+              role = "pod"
+            }
+
+            // Relabel pod logs so Loki queries can use Kubernetes metadata
+            discovery.relabel "pod_logs" {
+              targets = discovery.kubernetes.pod_logs.targets
+
+              rule {
+                source_labels = ["__meta_kubernetes_namespace"]
+                action        = "replace"
+                target_label  = "namespace"
+              }
+
+              rule {
+                source_labels = ["__meta_kubernetes_pod_name"]
+                action        = "replace"
+                target_label  = "pod"
+              }
+
+              rule {
+                source_labels = ["__meta_kubernetes_pod_container_name"]
+                action        = "replace"
+                target_label  = "container"
+              }
+
+              rule {
+                source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+                action        = "replace"
+                target_label  = "app"
+              }
+
+              rule {
+                source_labels = ["app", "__meta_kubernetes_pod_label_app"]
+                action        = "replace"
+                target_label  = "app"
+                regex         = ";(.+)"
+                replacement   = "$1"
+              }
+
+              rule {
+                source_labels = ["app"]
+                action        = "replace"
+                target_label  = "service_name"
+              }
+
+              rule {
+                source_labels = ["service_name", "__meta_kubernetes_pod_container_name"]
+                action        = "replace"
+                target_label  = "service_name"
+                regex         = ";(.+)"
+                replacement   = "$1"
+              }
+
+              rule {
+                source_labels = ["__meta_kubernetes_namespace", "__meta_kubernetes_pod_container_name"]
+                action        = "replace"
+                target_label  = "job"
+                separator     = "/"
+              }
+            }
+
+            // Collect logs from all pods (using Kubernetes API)
+            loki.source.kubernetes "pod_logs" {
+              targets    = discovery.relabel.pod_logs.output
+              forward_to = [loki.write.default.receiver]
+            }
+

@@ -1,0 +1,200 @@
+forgejo:
+  image:
+    rootless: true
+
+  extraVolumes:
+    - name: ca-bundle
+      configMap:
+        name: ca-bundle
+  extraVolumeMounts:
+    - name: ca-bundle
+      mountPath: /etc/ssl/certs/ca-certificates.crt
+      subPath: ca-bundle.crt
+      readOnly: true
+
+  ingress:
+    enabled: false
+
+  service:
+    http:
+      type: ClusterIP
+      port: 3000
+    ssh:
+      type: LoadBalancer
+      port: 22
+
+  httpRoute:
+    enabled: true
+    hostnames:
+      - git.schober.dev
+    parentRefs:
+      - group: gateway.networking.k8s.io
+        kind: Gateway
+        name: internal-gateway
+        namespace: istio-ingress-internal
+        sectionName: https
+
+  tcpRoute:
+    enabled: false
+
+  persistence:
+    enabled: true
+    create: false
+    mount: true
+    claimName: forgejo-data
+
+  gitea:
+    config:
+      APP_NAME: "Forgejo"
+
+      server:
+        DOMAIN: git.schober.dev
+        ROOT_URL: https://git.schober.dev
+        PROTOCOL: http
+        HTTP_PORT: 3000
+        SSH_DOMAIN: git.schober.dev
+        SSH_PORT: 22
+        SSH_LISTEN_PORT: 2222
+        START_SSH_SERVER: true
+        LFS_START_SERVER: true
+
+      database:
+        DB_TYPE: postgres
+        HOST: forgejo-postgres-rw.forgejo.svc.cluster.local:5432
+        NAME: forgejo
+        USER: forgejo
+        SSL_MODE: require
+
+      service:
+        DISABLE_REGISTRATION: false
+        ALLOW_ONLY_EXTERNAL_REGISTRATION: true
+        REQUIRE_SIGNIN_VIEW: true
+
+      oauth2:
+        ENABLED: true
+
+      security:
+        INSTALL_LOCK: true
+
+      # Everything Forgejo can keep in object storage goes to versitygw, which
+      # is backed by the HDD pool. That is LFS, packages, attachments,
+      # avatars, repo archives and Actions logs/artifacts -- i.e. the data
+      # that actually grows without bound, and that is written once and read
+      # rarely. It does NOT include the git repositories: those are always a
+      # POSIX filesystem and stay on the Longhorn PVC (see pvc: below).
+      #
+      # Keeping the blobs off the PVC is what lets that PVC stay small enough
+      # for 3-way Longhorn replication on the nodes' NVMe to be cheap.
+      storage:
+        STORAGE_TYPE: minio
+        # host:port, no scheme -- unlike the CNPG barman endpointURL, which
+        # wants a full URL. Getting this wrong fails at startup, not later.
+        MINIO_ENDPOINT: versitygw.versitygw.svc.cluster.local:7070
+        MINIO_BUCKET: forgejo
+        MINIO_LOCATION: homelab
+        MINIO_USE_SSL: false
+        # versitygw rejects the AWS-style trailing checksums the SDK sends by
+        # default; md5 is the compatibility mode for non-AWS gateways.
+        MINIO_CHECKSUM_ALGORITHM: md5
+
+      indexer:
+        # The bleve issue indexer writes a stream of tiny files to the PVC for
+        # no benefit at homelab scale -- Postgres handles issue search fine,
+        # and this keeps the replicated volume quiet.
+        ISSUE_INDEXER_TYPE: db
+        REPO_INDEXER_ENABLED: false
+
+    # Sensitive values injected via env vars using FORGEJO__ prefix
+    additionalConfigFromEnvs:
+      - name: FORGEJO__DATABASE__PASSWD
+        valueFrom:
+          secretKeyRef:
+            name: cnpg-forgejo-credentials
+            key: password
+      - name: FORGEJO__SECURITY__SECRET_KEY
+        valueFrom:
+          secretKeyRef:
+            name: forgejo-secret  # created by ExternalSecret
+            key: SECRET_KEY
+      - name: FORGEJO__STORAGE__MINIO_ACCESS_KEY_ID
+        valueFrom:
+          secretKeyRef:
+            name: forgejo-s3-storage  # created by ExternalSecret
+            key: AWS_ACCESS_KEY_ID
+      - name: FORGEJO__STORAGE__MINIO_SECRET_ACCESS_KEY
+        valueFrom:
+          secretKeyRef:
+            name: forgejo-s3-storage
+            key: AWS_SECRET_ACCESS_KEY
+
+    # ini-formatted session/cache/queue config sourced from a secret (contains Valkey connection strings)
+    additionalConfigSources:
+      - secret:
+          secretName: forgejo-ini-config
+
+    oauth:
+      - name: "authentik"
+        provider: "openidConnect"
+        existingSecret: forgejo-secret  # has keys 'key' (client ID) and 'secret' (client secret)
+        autoDiscoverUrl: "https://auth.schober.dev/application/o/forgejo/.well-known/openid-configuration"
+        iconUrl: "https://auth.schober.dev/static/dist/assets/icons/icon.png"
+        scopes: "openid email profile"
+
+# --- Custom template values ---
+
+postgres:
+  enabled: true
+  clusterName: forgejo-postgres
+  instances: 3
+  imageName: ghcr.io/cloudnative-pg/postgresql:18.1
+  storage:
+    class: openebs-hostpath
+    size: 10Gi
+
+  database: forgejo
+  owner: forgejo
+  restore: false
+
+  backup:
+    # Bump on every from-scratch re-init of the cluster (see the comment on
+    # serverName in templates/scheduled-backup.yaml). 2026-09-11: cluster was
+    # recreated empty after the old PVCs were deleted; the previous catalog
+    # still lives under the default name "forgejo-postgres".
+    serverName: forgejo-postgres-20260911
+
+# Git repositories only -- bare repos are many small files with fsync'd refs
+# and lockfiles, so this wants POSIX semantics and NVMe, which is what
+# Longhorn on the nodes' ephemeral partition gives us. Explicitly not the
+# NFS/HDD NAS: NFS close-to-open revalidation makes every housekeeping pass a
+# round-trip storm, and its locking is the classic source of git corruption.
+#
+# 25Gi rather than 10Gi because this now holds ONLY repos, but repos grow via
+# packfiles and Longhorn volumes cannot be shrunk -- headroom is cheaper than
+# a migration. The bulk data that used to justify a bigger volume is in S3
+# (see gitea.config.storage above).
+pvc:
+  enabled: true
+  claimName: forgejo-data
+  storageClass: longhorn
+  size: 25Gi
+
+tcpRoute:
+  enabled: true
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: internal-gateway
+      namespace: istio-ingress-internal
+      sectionName: git-ssh
+
+externalSecret:
+  enabled: true
+  refreshInterval: 1h0m0s
+  secretStoreRef:
+    name: bitwarden-app-secrets
+    kind: ClusterSecretStore
+  keys:
+    secretKey: forgejo-secret-key
+    valkeyPassword: valkey-password
+    oauthClientSecret: authentik-forgejo-client-secret
+    cnpgPassword: forgejo-db-secret

@@ -1,0 +1,45 @@
+{{- if .Values.postgres.enabled }}
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ .Values.postgres.clusterName }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  instances: {{ .Values.postgres.instances }}
+  imageName: {{ .Values.postgres.imageName }}
+  storage:
+    pvcTemplate:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: {{ .Values.postgres.storage.size }}
+      {{- with .Values.postgres.storage.class }}
+      storageClassName: {{ . }}
+      {{- end }}
+      {{- with .Values.postgres.storage.volumeName }}
+      volumeName: {{ . }}
+      {{- end }}
+  postgresql:
+    shared_preload_libraries:
+      {{- toYaml .Values.postgres.sharedPreloadLibraries | nindent 6 }}
+  managed:
+    roles:
+      - name: {{ .Values.postgres.owner }}
+        ensure: present
+        login: true
+        passwordSecret:
+          name: cnpg-{{ .Values.postgres.owner }}-credentials
+  bootstrap:
+    initdb:
+      database: {{ .Values.postgres.database }}
+      owner: {{ .Values.postgres.owner }}
+      postInitApplicationSQL:
+        {{- toYaml .Values.postgres.postInitSQL | nindent 8 }}
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      enabled: true
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: immich-versitygw-store
+{{- end }}

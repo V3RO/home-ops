@@ -1,0 +1,18 @@
+{{- $adopt := .Values.adopt | default dict }}
+{{- if and .Values.versitygw.persistence.enabled (not .Values.versitygw.persistence.create) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.versitygw.persistence.claimName }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  accessModes:
+    - {{ .Values.versitygw.persistence.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.versitygw.persistence.size }}
+  storageClassName: {{ .Values.versitygw.persistence.storageClassName }}
+  {{- if $adopt.dataset }}
+  volumeName: {{ .Values.versitygw.persistence.claimName }}
+  {{- end }}
+{{- end }}

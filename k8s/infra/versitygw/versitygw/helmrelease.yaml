@@ -1,0 +1,171 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: versitygw
+  namespace: flux-system
+spec:
+  interval: 5m
+  timeout: 5m
+  chart:
+    spec:
+      chart: ./k8s/infra/versitygw/versitygw
+      sourceRef:
+        kind: GitRepository
+        name: flux-system
+        namespace: flux-system
+      reconcileStrategy: Revision
+  releaseName: versitygw
+  targetNamespace: versitygw
+  install:
+    remediation:
+      retries: 3
+    disableWait: true
+  upgrade:
+    force: true
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+    disableWait: true
+  values:
+    # How long a completed setup Job is kept before Kubernetes garbage
+    # collects it. Note the side effect: once a Job object is gone, the next
+    # Helm upgrade recreates it and it RUNS AGAIN. With reconcileStrategy:
+    # Revision every commit to this repo triggers an upgrade, so this value
+    # is effectively "how often the setup Jobs re-reconcile". Keep it long
+    # (days, not minutes) -- versitygw's users.json has no cross-write
+    # locking, so re-running create-users more often than necessary is the
+    # opposite of free.
+    jobTTLSecondsAfterFinished: 604800  # 7d
+
+    cnpgClients:
+      - authentik
+      - grafana
+      - immich
+      - n8n
+      - mealie
+      - forgejo
+      - prowlarr
+      - radarr
+      - sonarr
+      - seerr
+
+    dataClients:
+      - name: forgejo-data
+        bucket: forgejo
+
+#    adopt:
+#      dataset: "pvc-6755e7ee-6100-43a8-9836-6c6190717109"
+#      datasetParent: hdd/k8s/n/v
+#      server: 10.1.10.20
+
+    versitygw:
+      image:
+        tag: "v1.7.0"
+
+      replicaCount: 3
+      strategy:
+        type: RollingUpdate
+        rollingUpdate:
+          maxSurge: 0
+          maxUnavailable: 1
+
+      auth:
+        existingSecret: versitygw-credentials
+
+      persistence:
+        enabled: true
+        create: false
+        claimName: versitygw-data
+        size: 50Gi
+        storageClassName: truenas-nfs-media
+        accessMode: ReadWriteMany
+
+      httpRoute:
+        enabled: true
+        parentRefs:
+          - name: internal-gateway
+            namespace: istio-ingress-internal
+            sectionName: versitygw-https
+        hostnames:
+          - s3.versitygw.schober.dev
+
+      admin:
+        enabled: true
+        httpRoute:
+          enabled: true
+          parentRefs:
+            - name: internal-gateway
+              namespace: istio-ingress-internal
+              sectionName: versitygw-https
+          hostnames:
+            - admin.versitygw.schober.dev
+
+      iam:
+        enabled: true
+        # Store IAM accounts (client access keys) as an object in the "iam"
+        # bucket instead of the internal flat-file store. See BOOTSTRAP.md
+        # for why this needs k8s/apps/external-services/versitygw-iam and
+        # gateway.virtualDomain below to be pointed at that namespace
+        # rather than this gateway's own.
+        type: s3
+
+      extraEnv:
+        - name: VGW_S3_IAM_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: versitygw-credentials
+              key: rootAccessKeyId
+        - name: VGW_S3_IAM_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: versitygw-credentials
+              key: rootSecretAccessKey
+        - name: VGW_S3_IAM_REGION
+          value: "homelab"
+        - name: VGW_S3_IAM_BUCKET
+          value: "iam"
+        - name: VGW_S3_IAM_ENDPOINT
+          value: "http://external-services.svc.cluster.local:7070"
+
+      webui:
+        enabled: true
+        apiGateways:
+          - https://s3.versitygw.schober.dev
+        adminGateways:
+          - https://admin.versitygw.schober.dev
+        httpRoute:
+          enabled: true
+          parentRefs:
+            - name: internal-gateway
+              namespace: istio-ingress-internal
+              sectionName: versitygw-https
+          hostnames:
+            - web.versitygw.schober.dev
+
+      gateway:
+        region: "homelab"
+        corsAllowOrigin: "*"
+        # Only for the S3 IAM backend's own bucket-prefixed requests to
+        # iam.external-services.svc.cluster.local (see templates/iam-service.yaml
+        # and BOOTSTRAP.md). Deliberately NOT this gateway's own namespace —
+        # that collided with its real Service hostname and broke CNPG
+        # backups in production; see BOOTSTRAP.md for the full story.
+        virtualDomain: "external-services.svc.cluster.local"
+
+      # Spread the 3 replicas across 3 distinct nodes since they share one RWX
+      # PVC and posix backend directory — colocating replicas defeats the point.
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: versitygw
+
+      resources:
+        limits:
+          cpu: 500m
+          memory: 512Mi
+        requests:
+          cpu: 100m
+          memory: 128Mi

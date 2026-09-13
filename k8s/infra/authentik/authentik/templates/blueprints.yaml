@@ -1,0 +1,335 @@
+{{- range .Values.authentik.blueprints.data }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: blueprint-{{ .name }}
+  namespace: {{ $.Release.Namespace }}
+data:
+  {{ .name }}.yaml: |
+    # yaml-language-server: $schema=https://goauthentik.io/blueprints/schema.json
+    version: 1
+    metadata:
+      name: {{ .application.name }}
+      labels:
+        blueprints.goauthentik.io/description: "Blueprint for {{ .application.name }}"
+    entries:
+      {{- range $.Values.authentik.blueprints.groups }}
+      - model: authentik_core.group
+        id: global-group-{{ .name | lower | replace " " "-" }}
+        identifiers:
+          name: {{ .name }}
+      {{- end }}
+      {{- if .groups }}
+      {{- $blueprint := . }}
+      {{- range .groups }}
+      - model: authentik_core.group
+        id: {{ $blueprint.name }}-group-{{ .name | lower | replace " " "-" }}
+        identifiers:
+          name: {{ .name }}
+      {{- end }}
+      {{- end }}
+      {{- if eq (default "proxy" .provider.kind) "proxy" }}
+      - model: authentik_providers_proxy.proxyprovider
+        id: {{ .name }}-provider
+        state: present
+        identifiers:
+          name: {{ .provider.name }}
+        attrs:
+          mode: {{ .provider.mode }}
+          external_host: {{ .provider.externalHost }}
+          authorization_flow:
+            !Find [authentik_flows.flow, [slug, default-provider-authorization-explicit-consent]]
+          authentication_flow:
+            !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+          invalidation_flow:
+            !Find [authentik_flows.flow, [slug, default-invalidation-flow]]
+          {{- with .provider.unauthenticatedPaths }}
+          skip_path_regex: "{{ join "\\n" . }}"
+          {{- end }}
+      - model: authentik_core.application
+        id: {{ .name }}-application
+        identifiers:
+          slug: {{ .application.slug }}
+        attrs:
+          name: {{ .application.name }}
+          slug: {{ .application.slug }}
+          provider: !KeyOf {{ .name }}-provider
+          meta_launch_url: {{ .application.metaLaunchUrl }}
+          policy_engine_mode: any
+          {{- with .application.icon }}
+          icon: {{ . }}
+          {{- end }}
+      {{- else if eq .provider.kind "ldap" }}
+      - model: authentik_providers_ldap.ldapprovider
+        id: {{ .name }}-provider
+        identifiers:
+          name: {{ .provider.name }}
+        attrs:
+          name: {{ .provider.name }}
+          base_dn: {{ .provider.baseDn }}
+          authorization_flow:
+            !Find [authentik_flows.flow, [slug, {{ default "default-authentication-flow" .provider.bindFlowSlug | quote }}]]
+          invalidation_flow:
+            !Find [authentik_flows.flow, [slug, {{ default "default-invalidation-flow" .provider.unbindFlowSlug | quote }}]]
+          {{- with .provider.bindMode }}
+          bind_mode: {{ . }}
+          {{- end }}
+          {{- with .provider.searchMode }}
+          search_mode: {{ . }}
+          {{- end }}
+          {{- with .provider.tlsServerName }}
+          tls_server_name: {{ . }}
+          {{- end }}
+          {{- with .provider.uidStartNumber }}
+          uid_start_number: {{ . }}
+          {{- end }}
+          {{- with .provider.gidStartNumber }}
+          gid_start_number: {{ . }}
+          {{- end }}
+          {{- if hasKey .provider "mfaSupport" }}
+          mfa_support: {{ .provider.mfaSupport }}
+          {{- end }}
+        {{- with .provider.permissions }}
+        permissions:
+          {{- range . }}
+          - permission: {{ .permission }}
+            {{- with .user }}
+            user: !Find [authentik_core.user, [username, {{ . | quote }}]]
+            {{- end }}
+            {{- with .role }}
+            role: !Find [authentik_rbac.role, [name, {{ . | quote }}]]
+            {{- end }}
+          {{- end }}
+        {{- end }}
+      - model: authentik_core.application
+        id: {{ .name }}-application
+        identifiers:
+          slug: {{ .application.slug }}
+        attrs:
+          name: {{ .application.name }}
+          slug: {{ .application.slug }}
+          provider: !KeyOf {{ .name }}-provider
+          meta_launch_url: {{ .application.metaLaunchUrl }}
+          policy_engine_mode: any
+          {{- with .application.icon }}
+          icon: {{ . }}
+          {{- end }}
+      {{- if and .outpost .outpost.enabled }}
+      {{- $outpostName := default (printf "%s-ldap" .name) .outpost.name }}
+      {{- $serviceConnectionName := default $.Values.authentik.blueprints.outposts.defaults.serviceConnectionName .outpost.serviceConnectionName }}
+      {{- $authentikHost := default (printf "https://%s" $.Values.route.hostname) .outpost.authentikHost }}
+      - model: authentik_outposts.outpost
+        id: {{ .name }}-outpost
+        state: present
+        identifiers:
+          name: {{ $outpostName }}
+        attrs:
+          name: {{ $outpostName }}
+          type: ldap
+          providers:
+            - !KeyOf {{ .name }}-provider
+          service_connection:
+            !Find [authentik_outposts.kubernetesserviceconnection, [name, {{ $serviceConnectionName | quote }}]]
+          config:
+            log_level: {{ default "info" .outpost.logLevel }}
+            refresh_interval: {{ default "minutes=5" .outpost.refreshInterval }}
+            authentik_host: {{ $authentikHost | quote }}
+            authentik_host_browser: {{ default "" .outpost.authentikHostBrowser | quote }}
+            authentik_host_insecure: {{ default false .outpost.authentikHostInsecure }}
+            object_naming_template: {{ default "ak-outpost-%(name)s" .outpost.objectNamingTemplate | quote }}
+            kubernetes_replicas: {{ default 1 .outpost.kubernetesReplicas }}
+            kubernetes_namespace: {{ default $.Release.Namespace .outpost.kubernetesNamespace | quote }}
+            kubernetes_service_type: {{ default "ClusterIP" .outpost.kubernetesServiceType | quote }}
+            {{- with .outpost.kubernetesIngressAnnotations }}
+            kubernetes_ingress_annotations:
+{{ toYaml . | nindent 14 }}
+            {{- end }}
+            {{- with .outpost.kubernetesIngressSecretName }}
+            kubernetes_ingress_secret_name: {{ . | quote }}
+            {{- end }}
+            {{- with .outpost.kubernetesDisabledComponents }}
+            kubernetes_disabled_components:
+              {{- range . }}
+              - {{ . | quote }}
+              {{- end }}
+            {{- end }}
+            {{- with .outpost.kubernetesImagePullSecrets }}
+            kubernetes_image_pull_secrets:
+              {{- range . }}
+              - {{ . | quote }}
+              {{- end }}
+            {{- end }}
+            {{- with .outpost.kubernetesJsonPatches }}
+            kubernetes_json_patches:
+{{ toYaml . | indent 14 }}
+            {{- end }}
+      {{- end }}
+      {{- else if eq .provider.kind "oauth2" }}
+      {{- if (default false .provider.includeGroups) }}
+      - model: authentik_providers_oauth2.scopemapping
+        id: {{ .name }}-scope-groups
+        identifiers:
+          scope_name: groups
+        attrs:
+          name: Groups
+          scope_name: groups
+          expression: |
+            return {"groups": [group.name for group in user.ak_groups.all()]}
+      {{- end }}
+      {{- if (default false .provider.immichRoleClaim) }}
+      - model: authentik_providers_oauth2.scopemapping
+        id: {{ .name }}-scope-immich-role
+        identifiers:
+          scope_name: immich_role
+        attrs:
+          name: Immich role
+          scope_name: immich_role
+          expression: |
+            groups = [group.name for group in user.ak_groups.all()]
+            return {"immich_role": "admin" if "homelab-admins" in groups else "user"}
+      {{- end }}
+      - model: authentik_providers_oauth2.oauth2provider
+        id: {{ .name }}-provider
+        identifiers:
+          name: {{ .provider.name }}
+        attrs:
+          name: {{ .provider.name }}
+          authorization_flow:
+            !Find [authentik_flows.flow, [slug, default-provider-authorization-explicit-consent]]
+          invalidation_flow:
+            !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          client_type: confidential
+          client_id: {{ .provider.clientId }}
+          client_secret: !Env {{ .provider.clientSecretEnv }}
+          redirect_uris:
+            {{- range .provider.redirectUris }}
+            - url: {{ .url }}
+              matching_mode: {{ .matchingMode }}
+            {{- end }}
+          {{- $signingKeyName := default "authentik Internal JWT Certificate" .provider.signingKeyName }}
+          signing_key:
+            !Find [authentik_crypto.certificatekeypair, [name, {{ $signingKeyName | quote }}]]
+          property_mappings:
+            - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
+            - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
+            - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
+            {{- if (default false .provider.includeGroups) }}
+            - !KeyOf {{ .name }}-scope-groups
+            {{- end }}
+            {{- if (default false .provider.immichRoleClaim) }}
+            - !KeyOf {{ .name }}-scope-immich-role
+            {{- end }}
+            - !Find [authentik_providers_oauth2.scopemapping, [scope_name, offline_access]]
+      - model: authentik_core.application
+        id: {{ .name }}-application
+        identifiers:
+          slug: {{ .application.slug }}
+        attrs:
+          name: {{ .application.name }}
+          slug: {{ .application.slug }}
+          provider: !KeyOf {{ .name }}-provider
+          meta_launch_url: {{ .application.metaLaunchUrl }}
+          policy_engine_mode: any
+          {{- with .application.icon }}
+          icon: {{ . }}
+      {{- end }}
+      {{- if eq .access "user" }}
+      - model: authentik_policies.policybinding
+        identifiers:
+          target: !Find [authentik_core.application, [slug, {{ .application.slug | quote }}]]
+          order: 0
+        attrs:
+          group: !Find [authentik_core.group, [name, "homelab-users"]]
+      - model: authentik_policies.policybinding
+        identifiers:
+          target: !Find [authentik_core.application, [slug, {{ .application.slug | quote }}]]
+          order: 1
+        attrs:
+          group: !Find [authentik_core.group, [name, "homelab-admins"]]
+      {{- else if eq .access "admin" }}
+      - model: authentik_policies.policybinding
+        identifiers:
+          target: !Find [authentik_core.application, [slug, {{ .application.slug | quote }}]]
+          order: 0
+        attrs:
+          group: !Find [authentik_core.group, [name, "homelab-admins"]]
+      {{- end }}
+{{- end }}
+{{- end }}
+
+{{- $proxyOutpost := .Values.authentik.blueprints.outposts.proxy }}
+{{- if and $proxyOutpost $proxyOutpost.enabled }}
+{{- $proxyProviders := list }}
+{{- range .Values.authentik.blueprints.data }}
+{{- if eq (default "proxy" .provider.kind) "proxy" }}
+{{- $proxyProviders = append $proxyProviders .provider.name }}
+{{- end }}
+{{- end }}
+{{- if gt (len $proxyProviders) 0 }}
+{{- $serviceConnectionName := default .Values.authentik.blueprints.outposts.defaults.serviceConnectionName $proxyOutpost.serviceConnectionName }}
+{{- $authentikHost := default (printf "https://%s" .Values.route.hostname) $proxyOutpost.authentikHost }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: blueprint-proxy-outpost
+  namespace: {{ .Release.Namespace }}
+data:
+  proxy-outpost.yaml: |
+    # yaml-language-server: $schema=https://goauthentik.io/blueprints/schema.json
+    version: 1
+    metadata:
+      name: Proxy Outpost
+      labels:
+        blueprints.goauthentik.io/description: "Blueprint for the shared proxy outpost"
+    entries:
+      - model: authentik_outposts.outpost
+        id: proxy-outpost
+        state: present
+        identifiers:
+          name: {{ default "proxy" $proxyOutpost.name }}
+        attrs:
+          name: {{ default "proxy" $proxyOutpost.name }}
+          type: proxy
+          providers:
+            {{- range $proxyProviders }}
+            - !Find [authentik_providers_proxy.proxyprovider, [name, {{ . | quote }}]]
+            {{- end }}
+          service_connection:
+            !Find [authentik_outposts.kubernetesserviceconnection, [name, {{ $serviceConnectionName | quote }}]]
+          config:
+            log_level: {{ default "info" $proxyOutpost.logLevel }}
+            refresh_interval: {{ default "minutes=5" $proxyOutpost.refreshInterval }}
+            authentik_host: {{ $authentikHost | quote }}
+            authentik_host_browser: {{ default "" $proxyOutpost.authentikHostBrowser | quote }}
+            authentik_host_insecure: {{ default false $proxyOutpost.authentikHostInsecure }}
+            object_naming_template: {{ default "ak-outpost-%(name)s" $proxyOutpost.objectNamingTemplate | quote }}
+            kubernetes_replicas: {{ default 1 $proxyOutpost.kubernetesReplicas }}
+            kubernetes_namespace: {{ default .Release.Namespace $proxyOutpost.kubernetesNamespace | quote }}
+            kubernetes_service_type: {{ default "ClusterIP" $proxyOutpost.kubernetesServiceType | quote }}
+            {{- with $proxyOutpost.kubernetesIngressAnnotations }}
+            kubernetes_ingress_annotations:
+{{ toYaml . | nindent 14 }}
+            {{- end }}
+            {{- with $proxyOutpost.kubernetesIngressSecretName }}
+            kubernetes_ingress_secret_name: {{ . | quote }}
+            {{- end }}
+            {{- with $proxyOutpost.kubernetesDisabledComponents }}
+            kubernetes_disabled_components:
+              {{- range . }}
+              - {{ . | quote }}
+              {{- end }}
+            {{- end }}
+            {{- with $proxyOutpost.kubernetesImagePullSecrets }}
+            kubernetes_image_pull_secrets:
+              {{- range . }}
+              - {{ . | quote }}
+              {{- end }}
+            {{- end }}
+            {{- with $proxyOutpost.kubernetesJsonPatches }}
+            kubernetes_json_patches:
+{{ toYaml . | indent 14 }}
+            {{- end }}
+{{- end }}
+{{- end }}

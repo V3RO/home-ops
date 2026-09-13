@@ -1,0 +1,73 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: cni
+  namespace: flux-system
+spec:
+  interval: 5m
+  timeout: 10m
+  chart:
+    spec:
+      chart: cni
+      version: "1.30.4"
+      sourceRef:
+        kind: HelmRepository
+        name: istio
+        namespace: flux-system
+  releaseName: cni
+  targetNamespace: istio-system
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+    crds: CreateReplace
+  dependsOn:
+    - name: base
+      namespace: flux-system
+  values:
+    profile: ambient
+    ambient:
+      # Default-on enrollment: every namespace joins the ambient mesh unless
+      # it opts out with the istio.io/dataplane-mode: none label (managed in
+      # the namespaces component) or is a system namespace. The first two
+      # selectors keep upstream's explicit opt-in semantics, so the ambient
+      # label still wins for selector-excluded namespaces.
+      enablementSelectors:
+        - podSelector:
+            matchLabels:
+              istio.io/dataplane-mode: ambient
+        - namespaceSelector:
+            matchLabels:
+              istio.io/dataplane-mode: ambient
+          podSelector:
+            matchExpressions:
+              - key: istio.io/dataplane-mode
+                operator: NotIn
+                values:
+                  - none
+        - namespaceSelector:
+            matchExpressions:
+              - key: istio.io/dataplane-mode
+                operator: NotIn
+                values:
+                  - none
+              # System namespaces plus flux-system and istio-system: the
+              # tooling that manages the mesh stays out of the mesh, so a
+              # ztunnel/cni outage can never block reconciliation of the fix.
+              - key: kubernetes.io/metadata.name
+                operator: NotIn
+                values:
+                  - kube-system
+                  - kube-node-lease
+                  - kube-public
+                  - flux-system
+                  - istio-system
+          podSelector:
+            matchExpressions:
+              - key: istio.io/dataplane-mode
+                operator: NotIn
+                values:
+                  - none

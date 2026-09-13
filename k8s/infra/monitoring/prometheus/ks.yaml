@@ -1,0 +1,26 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: prometheus
+  namespace: flux-system
+spec:
+  interval: 10m
+  retryInterval: 1m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  path: ./k8s/infra/monitoring/prometheus
+  prune: true
+  dependsOn:
+    - name: namespaces
+    # PVCs use the longhorn storage class
+    - name: longhorn
+    # HTTPRoute targets the internal Gateway
+    - name: gateway
+  healthChecks:
+    - apiVersion: helm.toolkit.fluxcd.io/v2
+      kind: HelmRelease
+      name: prometheus
+      namespace: flux-system

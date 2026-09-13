@@ -1,0 +1,27 @@
+{{- $adopt := .Values.adopt | default dict }}
+{{- if $adopt.dataset }}
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ .Values.claimName }}
+spec:
+  capacity:
+    storage: {{ .Values.size }}
+  accessModes:
+    - {{ .Values.accessMode }}
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: {{ .Values.storageClass }}
+  mountOptions:
+    - noatime
+    - nfsvers=4
+    - rsize=131072
+    - wsize=131072
+  csi:
+    driver: org.democratic-csi.nfs
+    volumeHandle: {{ $adopt.dataset }}
+    volumeAttributes:
+      node_attach_driver: nfs
+      provisioner_driver: freenas-api-nfs
+      server: {{ $adopt.server | quote }}
+      share: /mnt/{{ $adopt.datasetParent }}/{{ $adopt.dataset }}
+{{- end }}

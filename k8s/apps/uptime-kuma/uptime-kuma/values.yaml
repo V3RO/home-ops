@@ -1,0 +1,59 @@
+home-ops-chart:
+  image:
+    repository: louislam/uptime-kuma
+    tag: "1"
+    pullPolicy: IfNotPresent
+
+  strategy:
+    type: Recreate
+
+  ports:
+    - name: http
+      containerPort: 3001
+      protocol: TCP
+
+  livenessProbe:
+    httpGet:
+      path: /
+      port: http
+    initialDelaySeconds: 30
+    periodSeconds: 30
+
+  readinessProbe:
+    httpGet:
+      path: /
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 10
+
+  service:
+    ports:
+      - port: 3001
+        targetPort: http
+        protocol: TCP
+        name: http
+
+  httpRoute:
+    enabled: true
+    hostnames:
+      - uptime.schober.dev
+    parentRefs:
+      - name: internal-gateway
+        namespace: istio-ingress-internal
+        sectionName: https
+    rules:
+      - backendRefs:
+          - name: uptime-kuma-home-ops-chart
+            port: 3001
+
+  persistence:
+    data:
+      enabled: true
+      existingClaim: uptime-kuma-data
+      size: 2Gi
+      mountPath: /app/data
+
+pvc:
+  name: uptime-kuma-data
+  storageClass: longhorn
+  size: 2Gi

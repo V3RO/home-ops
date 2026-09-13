@@ -1,0 +1,103 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: democratic-csi-iscsi
+  namespace: flux-system
+spec:
+  interval: 5m
+  timeout: 10m
+  chart:
+    spec:
+      chart: ./k8s/infra/democratic-csi/democratic-csi-iscsi
+      sourceRef:
+        kind: GitRepository
+        name: flux-system
+        namespace: flux-system
+      reconcileStrategy: Revision
+  releaseName: democratic-csi-iscsi
+  targetNamespace: democratic-csi
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+  values:
+    truenas:
+      host: 10.1.10.20
+      port: 443
+      allowInsecure: true
+      datasetParentName: hdd/k8s/b/v
+      detachedSnapshotsDatasetParentName: hdd/k8s/b/s
+
+      targetPortal: "10.1.10.20:3260"
+      targetGroupPortalGroup: 1
+      targetGroupInitiatorGroup: 1
+
+    democratic-csi:
+      csiDriver:
+        name: org.democratic-csi.iscsi
+
+      driver:
+        existingConfigSecret: truenas-iscsi-config
+        config:
+          driver: freenas-api-iscsi
+
+      storageClasses:
+        - name: truenas-iscsi-db
+          defaultClass: false
+          reclaimPolicy: Retain
+          volumeBindingMode: Immediate
+          allowVolumeExpansion: true
+          parameters:
+            fsType: xfs
+            namePrefix: iscsi-db-
+            config: |
+              zfs:
+                zvolBlocksize: "16K"
+
+        - name: truenas-iscsi-block
+          defaultClass: false
+          reclaimPolicy: Retain
+          volumeBindingMode: Immediate
+          allowVolumeExpansion: true
+          parameters:
+            fsType: xfs
+            namePrefix: iscsi-block-
+            config: |
+              zfs:
+                zvolBlocksize: "128K"
+
+      volumeSnapshotClasses:
+        - name: truenas-iscsi
+          deletionPolicy: Retain
+          parameters:
+            detachedSnapshots: "true"
+
+      controller:
+        externalSnapshotter:
+          enabled: true
+        tolerations:
+          - key: node-role.kubernetes.io/control-plane
+            effect: NoSchedule
+        driver:
+          image:
+            tag: v1.9.5
+
+      node:
+        hostPID: true
+        driver:
+          extraEnv:
+            - name: ISCSIADM_HOST_STRATEGY
+              value: nsenter
+            - name: ISCSIADM_HOST_PATH
+              value: /usr/local/sbin/iscsiadm
+          iscsiDirHostPath: /var/iscsi
+          iscsiDirHostPathType: ""
+          image:
+            tag: v1.9.5
+        tolerations:
+          - key: node-role.kubernetes.io/control-plane
+            effect: NoSchedule
+

@@ -1,0 +1,9 @@
+apiVersion: "cilium.io/v2"
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: "lb-pool-01"
+  namespace: kube-system
+  annotations: {{ .Values.cilium.annotations | toYaml | nindent 4 }}
+spec:
+  blocks:
+    - cidr: "10.1.40.64/26"

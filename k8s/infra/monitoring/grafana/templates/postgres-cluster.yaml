@@ -1,0 +1,33 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: grafana-postgres
+  namespace: {{ .Release.Namespace }}
+spec:
+  instances: 3
+  imageName: ghcr.io/cloudnative-pg/postgresql:18.1
+  storage:
+    pvcTemplate:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 5Gi
+      storageClassName: openebs-hostpath
+  managed:
+    roles:
+      - name: grafana
+        ensure: present
+        login: true
+        passwordSecret:
+          name: cnpg-grafana-credentials
+  bootstrap:
+    initdb:
+      database: grafana
+      owner: grafana
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      enabled: true
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: grafana-versitygw-store

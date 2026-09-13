@@ -1,0 +1,302 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: prometheus
+  namespace: flux-system
+spec:
+  interval: 5m
+  timeout: 10m
+  chart:
+    spec:
+      chart: ./k8s/infra/monitoring/prometheus
+      sourceRef:
+        kind: GitRepository
+        name: flux-system
+        namespace: flux-system
+      reconcileStrategy: Revision
+  releaseName: prometheus
+  targetNamespace: monitoring
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+    crds: CreateReplace
+  values:
+    prometheus:
+      # Disable high availability mode for homelab
+      server:
+        replicaCount: 1
+        statefulSet:
+          enabled: true
+        persistentVolume:
+          enabled: true
+          storageClass: longhorn
+          size: 10Gi
+
+      # Disable alertmanager HA
+      alertmanager:
+        enabled: false
+        replicaCount: 1
+        statefulSet:
+          enabled: false
+        persistentVolume:
+          enabled: false
+
+      # Disable pushgateway
+      pushgateway:
+        enabled: false
+
+      # Disable kube-state-metrics HA
+      kube-state-metrics:
+        enabled: true
+        replicas: 1
+
+      # Pushgateway is a subchart, so disabling it needs the subchart's own key
+      # ("prometheus-pushgateway"), not "pushgateway" - the latter is silently
+      # ignored by Helm and left the pushgateway StatefulSet running unused.
+      prometheus-pushgateway:
+        enabled: false
+
+      # node-exporter and kube-state-metrics ship as subcharts of this chart and
+      # are enabled by default, so they are already running. They are scraped by
+      # the explicit jobs below rather than by annotation discovery.
+      prometheus-node-exporter:
+        enabled: true
+
+      serverFiles:
+        prometheus.yml:
+          # NOTE: Helm REPLACES lists rather than merging them, so this is the
+          # complete job list - every job Prometheus should run has to be here.
+          # It is deliberately an allowlist rather than the chart defaults plus
+          # extras: the chart's annotation-discovery jobs (kubernetes-pods,
+          # kubernetes-service-endpoints) are omitted because Alloy already
+          # scrapes prometheus.io/scrape-annotated pods and remote-writes them
+          # here, and running both would collect every annotated pod twice.
+          # Anything that needs scraping but is NOT an annotated pod therefore
+          # needs an explicit job below.
+          scrape_configs:
+            - job_name: 'prometheus'
+              static_configs:
+                - targets:
+                    - localhost:9090
+
+            - job_name: 'kubernetes-apiservers'
+              scheme: https
+              kubernetes_sd_configs:
+                - role: endpoints
+              tls_config:
+                ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+              bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+              relabel_configs:
+                - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+                  action: keep
+                  regex: default;kubernetes;https
+
+            # Kubelet's own metrics, proxied through the apiserver so we don't
+            # depend on the kubelet serving cert being valid for the node IP.
+            - job_name: 'kubernetes-nodes'
+              scheme: https
+              kubernetes_sd_configs:
+                - role: node
+              tls_config:
+                ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+              bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+              relabel_configs:
+                - action: labelmap
+                  regex: __meta_kubernetes_node_label_(.+)
+                - target_label: __address__
+                  replacement: kubernetes.default.svc:443
+                - source_labels: [__meta_kubernetes_node_name]
+                  regex: (.+)
+                  target_label: __metrics_path__
+                  replacement: /api/v1/nodes/$1/proxy/metrics
+
+            # Per-container CPU/memory/network/filesystem usage.
+            - job_name: 'kubernetes-nodes-cadvisor'
+              scheme: https
+              kubernetes_sd_configs:
+                - role: node
+              tls_config:
+                ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+              bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+              relabel_configs:
+                - action: labelmap
+                  regex: __meta_kubernetes_node_label_(.+)
+                - target_label: __address__
+                  replacement: kubernetes.default.svc:443
+                - source_labels: [__meta_kubernetes_node_name]
+                  regex: (.+)
+                  target_label: __metrics_path__
+                  replacement: /api/v1/nodes/$1/proxy/metrics/cadvisor
+
+            # Host-level metrics (CPU, load, memory, disk I/O, filesystem, NIC,
+            # hwmon temperatures) from the node-exporter DaemonSet. Talos has no
+            # node-exporter system extension, so the in-cluster DaemonSet is the
+            # only way to get these.
+            - job_name: 'node-exporter'
+              kubernetes_sd_configs:
+                - role: endpoints
+                  namespaces:
+                    names:
+                      - monitoring
+              relabel_configs:
+                - source_labels: [__meta_kubernetes_service_label_app_kubernetes_io_name]
+                  action: keep
+                  regex: prometheus-node-exporter
+                # node-exporter is host-networked; carry the node name so its
+                # series join against the kubelet/cadvisor jobs.
+                - source_labels: [__meta_kubernetes_endpoint_node_name]
+                  target_label: node
+                - source_labels: [__meta_kubernetes_pod_name]
+                  target_label: pod
+                - source_labels: [__meta_kubernetes_namespace]
+                  target_label: namespace
+
+            # Cluster object state: pod phases, deployment/statefulset replica
+            # counts, PVC status, cronjob history, node conditions.
+            - job_name: 'kube-state-metrics'
+              kubernetes_sd_configs:
+                - role: endpoints
+                  namespaces:
+                    names:
+                      - monitoring
+              relabel_configs:
+                - source_labels: [__meta_kubernetes_service_label_app_kubernetes_io_name]
+                  action: keep
+                  regex: kube-state-metrics
+                - source_labels: [__meta_kubernetes_pod_name]
+                  target_label: pod
+                - source_labels: [__meta_kubernetes_namespace]
+                  target_label: namespace
+
+            # --- Talos control-plane components ---
+            # These require the matching patches in talos/patches/controlplane.yaml
+            # (etcd listen-metrics-urls, scheduler/controllerManager bind-address);
+            # without them these targets are unreachable and will just show DOWN.
+            # Discovered via role: node + a port rewrite rather than static node
+            # IPs, so adding or renumbering a node needs no change here. The
+            # control-plane keep filter means future workers are skipped.
+
+            # etcd health: raft leader changes, proposal failures, DB size, and
+            # (with `metrics: extensive`) WAL fsync latency - the single most
+            # useful signal for a homelab etcd on shared storage.
+            - job_name: 'etcd'
+              kubernetes_sd_configs:
+                - role: node
+              relabel_configs:
+                - source_labels: [__meta_kubernetes_node_labelpresent_node_role_kubernetes_io_control_plane]
+                  action: keep
+                  regex: true
+                - source_labels: [__address__]
+                  action: replace
+                  regex: ([^:]+)(?::\d+)?
+                  replacement: $1:2381
+                  target_label: __address__
+                - source_labels: [__meta_kubernetes_node_name]
+                  target_label: node
+
+            # Workqueue depth/latency and per-controller reconcile rates - shows
+            # up as slow PVC binding, slow node lifecycle reaction, etc.
+            - job_name: 'kube-controller-manager'
+              scheme: https
+              # The serving cert is issued for the component, not for the node IP
+              # we dial, so hostname verification cannot succeed here.
+              tls_config:
+                insecure_skip_verify: true
+              bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+              kubernetes_sd_configs:
+                - role: node
+              relabel_configs:
+                - source_labels: [__meta_kubernetes_node_labelpresent_node_role_kubernetes_io_control_plane]
+                  action: keep
+                  regex: true
+                - source_labels: [__address__]
+                  action: replace
+                  regex: ([^:]+)(?::\d+)?
+                  replacement: $1:10257
+                  target_label: __address__
+                - source_labels: [__meta_kubernetes_node_name]
+                  target_label: node
+
+            # Scheduling attempt latency and unschedulable-pod counts - tells you
+            # whether a Pending pod is the scheduler's doing or a missing resource.
+            - job_name: 'kube-scheduler'
+              scheme: https
+              tls_config:
+                insecure_skip_verify: true
+              bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+              kubernetes_sd_configs:
+                - role: node
+              relabel_configs:
+                - source_labels: [__meta_kubernetes_node_labelpresent_node_role_kubernetes_io_control_plane]
+                  action: keep
+                  regex: true
+                - source_labels: [__address__]
+                  action: replace
+                  regex: ([^:]+)(?::\d+)?
+                  replacement: $1:10259
+                  target_label: __address__
+                - source_labels: [__meta_kubernetes_node_name]
+                  target_label: node
+
+            # --- Istio ---
+            - job_name: 'istiod'
+              kubernetes_sd_configs:
+                - role: endpoints
+                  namespaces:
+                    names:
+                      - istio-system
+              relabel_configs:
+                - source_labels: [__meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+                  action: keep
+                  regex: istiod;http-monitoring
+
+            - job_name: 'envoy-stats'
+              metrics_path: /stats/prometheus
+              kubernetes_sd_configs:
+                - role: pod
+              relabel_configs:
+                - source_labels: [__meta_kubernetes_pod_container_port_name]
+                  action: keep
+                  regex: '.*-envoy-prom'
+                - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+                  action: replace
+                  regex: ([^:]+)(?::\d+)?;(\d+)
+                  replacement: $1:15020
+                  target_label: __address__
+                - action: labelmap
+                  regex: __meta_kubernetes_pod_label_(.+)
+                - source_labels: [__meta_kubernetes_namespace]
+                  action: replace
+                  target_label: namespace
+                - source_labels: [__meta_kubernetes_pod_name]
+                  action: replace
+                  target_label: pod_name
+
+            - job_name: 'ztunnel'
+              kubernetes_sd_configs:
+                - role: pod
+                  namespaces:
+                    names:
+                      - istio-system
+              relabel_configs:
+                - source_labels: [__meta_kubernetes_pod_label_app]
+                  action: keep
+                  regex: ztunnel
+                - source_labels: [__address__]
+                  action: replace
+                  regex: ([^:]+)(?::\d+)?
+                  replacement: $1:15020
+                  target_label: __address__
+                - action: labelmap
+                  regex: __meta_kubernetes_pod_label_(.+)
+                - source_labels: [__meta_kubernetes_namespace]
+                  action: replace
+                  target_label: namespace
+                - source_labels: [__meta_kubernetes_pod_name]
+                  action: replace
+                  target_label: pod_name
+

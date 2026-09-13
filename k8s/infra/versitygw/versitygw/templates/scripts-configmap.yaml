@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: versitygw-setup-scripts
+  namespace: {{ .Release.Namespace }}
+data:
+  create-users.sh: |
+{{ .Files.Get "files/create-users.sh" | indent 4 }}
+  bucket-setup.sh: |
+{{ .Files.Get "files/bucket-setup.sh" | indent 4 }}

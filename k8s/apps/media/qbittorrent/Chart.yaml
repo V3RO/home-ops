@@ -1,0 +1,5 @@
+apiVersion: v2
+name: qbittorrent
+description: "qBittorrent with Gluetun VPN gateway for the media stack"
+type: application
+version: 0.1.0

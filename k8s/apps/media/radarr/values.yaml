@@ -1,0 +1,86 @@
+image:
+  repository: lscr.io/linuxserver/radarr
+  tag: "6.2.1"
+  pullPolicy: IfNotPresent
+
+env:
+  PUID: "1000"
+  PGID: "1000"
+  TZ: Europe/Vienna
+
+proxy:
+  HTTP_PROXY: "http://gluetun-proxy.media.svc.cluster.local:8888"
+  HTTPS_PROXY: "http://gluetun-proxy.media.svc.cluster.local:8888"
+  NO_PROXY: "localhost,127.0.0.1,.svc.cluster.local,.cluster.local"
+
+service:
+  port: 80
+  targetPort: 7878
+
+persistence:
+  config:
+    claimName: radarr-config
+    size: 5Gi
+    mountPath: /config
+    storageClass: longhorn
+  data:
+    claimName: media-data
+    mountPath: /data
+
+postgres:
+  clusterName: radarr-postgres
+  instances: 3
+  imageName: ghcr.io/cloudnative-pg/postgresql:18.1
+  storage:
+    class: openebs-hostpath
+    size: 2Gi
+  database: radarr_main
+  logDatabase: radarr_log
+  owner: radarr
+  restore:
+    enabled: false
+
+app:
+  host: radarr.schober.dev
+  gateway:
+    name: internal-gateway
+    namespace: istio-ingress-internal
+    sectionName: https
+  backendServiceName: radarr
+  servicePort: 80
+  authentik:
+    enabled: true
+    outpostService:
+      name: ak-outpost-proxy
+      namespace: authentik
+      port: 9000
+    extAuth:
+      pathPrefix: /outpost.goauthentik.io/auth/envoy
+      headersToForward:
+        - cookie
+      headersToBackend:
+        - set-cookie
+        - x-authentik-username
+        - x-authentik-groups
+        - x-authentik-entitlements
+        - x-authentik-email
+        - x-authentik-name
+        - x-authentik-uid
+        - x-authentik-jwt
+        - x-authentik-meta-jwks
+        - x-authentik-meta-outpost
+        - x-authentik-meta-provider
+        - x-authentik-meta-app
+        - x-authentik-meta-version
+      headersToClientOnSuccess:
+        - cookie
+
+externalSecret:
+  enabled: true
+  refreshInterval: 1h0m0s
+  secretStoreRef:
+    name: bitwarden-app-secrets
+    kind: ClusterSecretStore
+  keys:
+    apiKey: radarr-api-key
+    cnpgPassword: radarr-db-secret

@@ -1,0 +1,9 @@
+apiVersion: v2
+name: zot
+description: A Helm chart for the Zot OCI registry
+type: application
+version: 0.1.0
+dependencies:
+  - name: zot
+    version: 0.1.98
+    repository: http://zotregistry.dev/helm-charts

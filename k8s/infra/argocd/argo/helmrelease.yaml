@@ -1,0 +1,120 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: argo
+  namespace: flux-system
+spec:
+  interval: 5m
+  timeout: 15m
+  chart:
+    spec:
+      chart: ./k8s/infra/argocd/argo
+      sourceRef:
+        kind: GitRepository
+        name: flux-system
+        namespace: flux-system
+      reconcileStrategy: Revision
+  releaseName: argo
+  targetNamespace: argocd
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+  values:
+    argo-cd:
+      global:
+        domain: argo.schober.dev
+
+      configs:
+        params:
+          server.insecure: true
+          applicationsetcontroller.enable.progressive.syncs: true
+        cm:
+          url: https://argo.schober.dev
+          dex.config: |
+            staticClients:
+              - id: argo-cd-cli
+                name: Argo CD CLI
+                public: true
+                redirectURIs:
+                  - http://localhost
+                  - http://localhost:8085/auth/callback
+                  - argocd://auth/callback
+            connectors:
+              - type: oidc
+                id: authentik
+                name: authentik
+                config:
+                  issuer: https://auth.schober.dev/application/o/argocd/
+                  clientID: argocd
+                  clientSecret: $argocd-authentik-oidc:dex.authentik.clientSecret
+                  insecureEnableGroups: true
+                  scopes:
+                    - openid
+                    - profile
+                    - email
+                    - groups
+        rbac:
+          policy.csv: |
+            g, homelab-admins, role:admin
+
+      dex:
+        metrics:
+          enabled: true
+          serviceMonitor:
+            enabled: true
+        pdb:
+          minAvailable: 1
+        volumes:
+          - name: ca-bundle
+            configMap:
+              name: ca-bundle
+        volumeMounts:
+          - name: ca-bundle
+            mountPath: /etc/ssl/certs/ca-certificates.crt
+            subPath: ca-bundle.crt
+            readOnly: true
+
+      redis:
+        enabled: false
+      externalRedis:
+        host: valkey.valkey.svc.cluster.local
+        port: 6379
+        existingSecret: argocd-valkey
+
+      server:
+        metrics:
+          enabled: true
+          serviceMonitor:
+            enabled: true
+        httproute:
+          enabled: true
+          hostnames:
+            - argo.schober.dev
+          parentRefs:
+            - group: gateway.networking.k8s.io
+              kind: Gateway
+              name: internal-gateway
+              namespace: istio-ingress-internal
+              sectionName: https
+
+      repoServer:
+        metrics:
+          enabled: true
+          serviceMonitor:
+            enabled: true
+
+      controller:
+        metrics:
+          enabled: true
+          serviceMonitor:
+            enabled: true
+
+      applicationSet:
+        metrics:
+          enabled: true
+          serviceMonitor:
+            enabled: true

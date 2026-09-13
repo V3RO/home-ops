@@ -1,0 +1,9 @@
+apiVersion: v2
+name: forgejo
+description: "Forgejo deployment for homelab"
+type: application
+version: 0.1.0
+dependencies:
+  - name: forgejo
+    version: 17.1.6
+    repository: oci://code.forgejo.org/forgejo-helm

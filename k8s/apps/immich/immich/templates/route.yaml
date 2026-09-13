@@ -1,0 +1,29 @@
+{{- if .Values.app.host }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: httproute-{{ .Values.app.backendServiceName }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  hostnames:
+    - {{ .Values.app.host }}
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: {{ .Values.app.gateway.name }}
+      namespace: {{ .Values.app.gateway.namespace }}
+      {{- with .Values.app.gateway.sectionName }}
+      sectionName: {{ . }}
+      {{- end }}
+  rules:
+    - backendRefs:
+        - group: ""
+          kind: Service
+          name: {{ .Values.app.backendServiceName }}
+          port: {{ .Values.app.servicePort }}
+          weight: 1
+      matches:
+        - path:
+            type: PathPrefix
+            value: /
+{{- end }}

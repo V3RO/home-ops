@@ -1,0 +1,26 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: ReferenceGrant
+metadata:
+  name: authentik-proxy-outpost-media-routes
+  namespace: {{ .Release.Namespace }}
+spec:
+  from:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: media
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: valkey
+    - group: gateway.kgateway.dev
+      kind: GatewayExtension
+      namespace: media
+    - group: gateway.kgateway.dev
+      kind: GatewayExtension
+      namespace: valkey
+    - group: gateway.kgateway.dev
+      kind: GatewayExtension
+      namespace: n8n
+  to:
+    - group: ""
+      kind: Service
+      name: ak-outpost-proxy

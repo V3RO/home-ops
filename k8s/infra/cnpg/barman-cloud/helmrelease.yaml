@@ -1,0 +1,29 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: barman-cloud
+  namespace: flux-system
+spec:
+  interval: 5m
+  timeout: 5m
+  chart:
+    spec:
+      chart: ./k8s/infra/cnpg/barman-cloud
+      sourceRef:
+        kind: GitRepository
+        name: flux-system
+        namespace: flux-system
+      reconcileStrategy: Revision
+  releaseName: barman-cloud
+  targetNamespace: cnpg
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+  dependsOn:
+    - name: cnpg-operator
+      namespace: flux-system
+  values:

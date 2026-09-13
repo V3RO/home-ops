@@ -1,0 +1,19 @@
+# Discovers and applies all per-component Flux Kustomizations (ks.yaml) under
+# k8s/infra. Adding a component = adding its directory with a ks.yaml and
+# referencing it from the namespace-level kustomization.yaml; removing the
+# ks.yaml prunes the component (its own prune setting applies).
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: infra
+  namespace: flux-system
+spec:
+  interval: 1m
+  retryInterval: 1m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  path: ./k8s/infra
+  prune: true

@@ -1,0 +1,117 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prowlarr
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: prowlarr
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: prowlarr
+  template:
+    metadata:
+      labels:
+        app: prowlarr
+    spec:
+      containers:
+        - name: prowlarr
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: PUID
+              value: {{ .Values.env.PUID | quote }}
+            - name: PGID
+              value: {{ .Values.env.PGID | quote }}
+            - name: TZ
+              value: {{ .Values.env.TZ | quote }}
+            - name: PROWLARR__AUTH__APIKEY
+              valueFrom:
+                secretKeyRef:
+                  name: prowlarr-secret
+                  key: apiKey
+            - name: PROWLARR__POSTGRES__HOST
+              value: "{{ .Values.postgres.clusterName }}-rw.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: PROWLARR__POSTGRES__PORT
+              value: "5432"
+            - name: PROWLARR__POSTGRES__USER
+              value: {{ .Values.postgres.owner | quote }}
+            - name: PROWLARR__POSTGRES__PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: cnpg-{{ .Values.postgres.owner }}-credentials
+                  key: password
+            - name: PROWLARR__POSTGRES__MAINDB
+              value: {{ .Values.postgres.database | quote }}
+            - name: PROWLARR__POSTGRES__LOGDB
+              value: {{ .Values.postgres.logDatabase | quote }}
+            {{- if .Values.proxy }}
+            - name: HTTP_PROXY
+              value: {{ .Values.proxy.HTTP_PROXY | quote }}
+            - name: HTTPS_PROXY
+              value: {{ .Values.proxy.HTTPS_PROXY | quote }}
+            - name: NO_PROXY
+              value: {{ .Values.proxy.NO_PROXY | quote }}
+            - name: http_proxy
+              value: {{ .Values.proxy.HTTP_PROXY | quote }}
+            - name: https_proxy
+              value: {{ .Values.proxy.HTTPS_PROXY | quote }}
+            - name: no_proxy
+              value: {{ .Values.proxy.NO_PROXY | quote }}
+            {{- end }}
+          {{- if .Values.app.authentik.enabled }}
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - |
+                    file=/config/config.xml
+                    i=0
+                    while [ $i -lt 60 ]; do
+                      if [ -f "$file" ]; then
+                        if grep -q '<AuthenticationMethod>' "$file"; then
+                          sed -i 's|<AuthenticationMethod>[^<]*</AuthenticationMethod>|<AuthenticationMethod>External</AuthenticationMethod>|g' "$file"
+                        elif grep -q '</Config>' "$file"; then
+                          sed -i '/<\/Config>/i\\  <AuthenticationMethod>External</AuthenticationMethod>' "$file"
+                        fi
+                        exit 0
+                      fi
+                      i=$((i + 1))
+                      sleep 2
+                    done
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+              protocol: TCP
+          startupProbe:
+            httpGet:
+              path: /ping
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+          volumeMounts:
+            - name: config
+              mountPath: {{ .Values.persistence.config.mountPath }}
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.config.claimName }}

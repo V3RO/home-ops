@@ -1,0 +1,83 @@
+# --- Upstream jellyfin chart values (nested under `jellyfin:` dependency key) ---
+jellyfin:
+  image:
+    tag: 12.0
+  deploymentStrategy:
+    type: Recreate
+  service:
+    port: 80
+  persistence:
+    config:
+      existingClaim: jellyfin-config
+    media:
+      enabled: false
+  volumes:
+    - name: data
+      persistentVolumeClaim:
+        claimName: media-data
+  volumeMounts:
+    - name: data
+      mountPath: /data
+      readOnly: true
+  resources:
+    requests:
+      ephemeral-storage: 1Gi
+    limits:
+      ephemeral-storage: 10Gi
+
+  jellyfin:
+    env:
+      - name: JELLYFIN_PublishedServerUrl
+        value: https://jellyfin.schober.dev
+
+# --- Custom template values (platform integration) ---
+
+# Config PVC (managed by custom template)
+persistence:
+  config:
+    claimName: jellyfin-config
+    size: 10Gi
+    storageClass: longhorn
+
+app:
+  host: jellyfin.schober.dev
+  gateway:
+    name: internal-gateway
+    namespace: istio-ingress-internal
+    sectionName: https
+  backendServiceName: jellyfin
+  servicePort: 80
+  authentik:
+    enabled: false
+    outpostService:
+      name: ak-outpost-proxy
+      namespace: authentik
+      port: 9000
+    extAuth:
+      pathPrefix: /outpost.goauthentik.io/auth/envoy
+      headersToForward:
+        - cookie
+      headersToBackend:
+        - set-cookie
+        - x-authentik-username
+        - x-authentik-groups
+        - x-authentik-entitlements
+        - x-authentik-email
+        - x-authentik-name
+        - x-authentik-uid
+        - x-authentik-jwt
+        - x-authentik-meta-jwks
+        - x-authentik-meta-outpost
+        - x-authentik-meta-provider
+        - x-authentik-meta-app
+        - x-authentik-meta-version
+      headersToClientOnSuccess:
+        - cookie
+
+externalSecret:
+  refreshInterval: 1h0m0s
+  secretStoreRef:
+    name: bitwarden-app-secrets
+    kind: ClusterSecretStore
+  keys:
+    ldapBindPassword: authentik-user-jellyfin-ldap-password

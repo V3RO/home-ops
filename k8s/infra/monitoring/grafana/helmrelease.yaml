@@ -1,0 +1,136 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: grafana
+  namespace: flux-system
+spec:
+  interval: 5m
+  timeout: 10m
+  chart:
+    spec:
+      chart: ./k8s/infra/monitoring/grafana
+      sourceRef:
+        kind: GitRepository
+        name: flux-system
+        namespace: flux-system
+      reconcileStrategy: Revision
+  releaseName: grafana
+  targetNamespace: monitoring
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+  dependsOn:
+    - name: prometheus
+      namespace: flux-system
+  values:
+    postgres:
+      restore: false
+
+    grafana:
+      replicas: 1
+
+      envFromSecret: grafana-authentik-oidc
+
+      envValueFrom:
+        GF_DATABASE_HOST:
+          secretKeyRef:
+            name: grafana-postgres-app
+            key: host
+        GF_DATABASE_NAME:
+          secretKeyRef:
+            name: grafana-postgres-app
+            key: dbname
+        GF_DATABASE_USER:
+          secretKeyRef:
+            name: grafana-postgres-app
+            key: username
+        GF_DATABASE_PASSWORD:
+          secretKeyRef:
+            name: cnpg-grafana-credentials
+            key: password
+
+      grafana.ini:
+        database:
+          type: postgres
+          host: ${GF_DATABASE_HOST}:5432
+          name: ${GF_DATABASE_NAME}
+          user: ${GF_DATABASE_USER}
+          password: ${GF_DATABASE_PASSWORD}
+          ssl_mode: require
+        server:
+          root_url: https://grafana.schober.dev
+        auth:
+          signout_redirect_url: https://auth.schober.dev/application/o/grafana/end-session/
+        auth.generic_oauth:
+          name: authentik
+          enabled: true
+          auto_login: true
+          client_id: grafana
+          client_secret: $__env{GRAFANA_OAUTH_CLIENT_SECRET}
+          scopes: "openid profile email groups"
+          auth_url: https://auth.schober.dev/application/o/authorize/
+          token_url: https://auth.schober.dev/application/o/token/
+          api_url: https://auth.schober.dev/application/o/userinfo/
+          allow_sign_up: true
+          role_attribute_path: >-
+            contains(groups[*], 'homelab-admins') && 'Admin' || 'None'
+
+      # Configure datasources
+      datasources:
+        datasources.yaml:
+          apiVersion: 1
+          datasources:
+            - name: Prometheus
+              type: prometheus
+              url: http://prometheus-server.monitoring.svc.cluster.local
+              access: proxy
+              isDefault: true
+            - name: Loki
+              type: loki
+              url: http://loki.monitoring.svc.cluster.local:3100
+              access: proxy
+            - name: Tempo
+              type: tempo
+              url: http://tempo.monitoring.svc.cluster.local:3200
+              access: proxy
+
+      # Configure Istio dashboards
+      dashboardProviders:
+        dashboardproviders.yaml:
+          apiVersion: 1
+          providers:
+            - name: 'istio'
+              orgId: 1
+              folder: 'Istio'
+              type: file
+              disableDeletion: false
+              editable: true
+              options:
+                path: /var/lib/grafana/dashboards/istio
+
+      dashboards:
+        istio:
+          istio-mesh:
+            gnetId: 7639
+            revision: 229
+            datasource: Prometheus
+          istio-service:
+            gnetId: 7636
+            revision: 229
+            datasource: Prometheus
+          istio-workload:
+            gnetId: 7630
+            revision: 229
+            datasource: Prometheus
+          istio-performance:
+            gnetId: 11829
+            revision: 229
+            datasource: Prometheus
+          istio-control-plane:
+            gnetId: 7645
+            revision: 229
+            datasource: Prometheus

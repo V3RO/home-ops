@@ -1,0 +1,49 @@
+{{- if .Values.authentik.blueprints.users }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: blueprint-users
+  namespace: {{ .Release.Namespace }}
+data:
+  users.yaml: |
+    # yaml-language-server: $schema=https://goauthentik.io/blueprints/schema.json
+    version: 1
+    metadata:
+      name: Users
+      labels:
+        blueprints.goauthentik.io/description: "Blueprint for user management"
+    entries:
+      {{- range .Values.authentik.blueprints.groups }}
+      - model: authentik_core.group
+        state: present
+        identifiers:
+          name: {{ .name }}
+      {{- end }}
+      {{- range .Values.authentik.blueprints.users }}
+      - model: authentik_core.user
+        state: present
+        identifiers:
+          username: {{ .username }}
+        attrs:
+          name: {{ .name }}
+          email: {{ .email }}
+          is_active: true
+          type: internal
+          {{- if .passwordEnv }}
+          password: !Env {{ .passwordEnv }}
+          {{- end }}
+      {{- end }}
+      {{- range .Values.authentik.blueprints.users }}
+      {{- $username := .username }}
+      {{- range .groups }}
+      - model: authentik_core.group
+        state: present
+        identifiers:
+          name: {{ . }}
+        attrs:
+          users:
+            - !Find [authentik_core.user, [username, {{ $username }}]]
+      {{- end }}
+      {{- end }}
+{{- end }}

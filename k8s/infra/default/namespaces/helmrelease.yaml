@@ -1,0 +1,111 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: namespaces
+  namespace: flux-system
+  annotations:
+    # Never garbage-collect this release: helm uninstalling it would delete
+    # every namespace and cascade into all cluster workloads.
+    kustomize.toolkit.fluxcd.io/prune: disabled
+spec:
+  interval: 5m
+  timeout: 5m
+  chart:
+    spec:
+      chart: ./k8s/infra/default/namespaces
+      sourceRef:
+        kind: GitRepository
+        name: flux-system
+        namespace: flux-system
+      reconcileStrategy: Revision
+  releaseName: namespaces
+  targetNamespace: default
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+  values:
+    # Ambient mesh enrollment is default-on cluster-wide (see the cni
+    # component's ambient.enablementSelectors). Namespaces labeled
+    # istio.io/dataplane-mode: none opt out; everything unlabeled is enrolled.
+    namespaces:
+      - name: istio-system
+        labels:
+          pod-security.kubernetes.io/enforce: privileged
+      - name: istio-ingress-internal
+        labels:
+          istio.io/dataplane-mode: none
+      - name: kgateway-system
+        labels:
+          istio.io/dataplane-mode: none
+      - name: argocd
+        labels:
+          istio.io/dataplane-mode: none
+      - name: external-dns
+      - name: cert-manager
+      - name: external-secrets
+        labels:
+          istio.io/dataplane-mode: none
+      - name: authentik
+      - name: cnpg
+        labels:
+          istio.io/dataplane-mode: none
+      - name: monitoring
+        labels:
+          pod-security.kubernetes.io/enforce: privileged
+      - name: valkey
+        labels:
+          istio.io/dataplane-mode: none
+      - name: versitygw
+      - name: n8n
+      - name: mealie
+      - name: homepage
+      - name: paperless
+      - name: zot
+      - name: forgejo
+      - name: external-services
+        labels:
+          istio.io/dataplane-mode: none
+      - name: intel
+        labels:
+          pod-security.kubernetes.io/enforce: privileged
+      - name: node-feature-discovery
+        labels:
+          istio.io/dataplane-mode: none
+          pod-security.kubernetes.io/enforce: privileged
+      - name: adguard
+      - name: actual
+      - name: immich
+      - name: media
+        labels:
+          istio.io/dataplane-mode: none
+          pod-security.kubernetes.io/enforce: privileged
+      - name: it-tools
+      - name: uptime-kuma
+      - name: kiali
+      - name: vert-sh
+      - name: rancher
+        labels:
+          pod-security.kubernetes.io/enforce: privileged
+          pod-security.kubernetes.io/audit: privileged
+          pod-security.kubernetes.io/warn: privileged
+      - name: democratic-csi
+        labels:
+          pod-security.kubernetes.io/enforce: privileged
+          pod-security.kubernetes.io/audit: privileged
+          pod-security.kubernetes.io/warn: privileged
+      - name: longhorn-system
+        labels:
+          pod-security.kubernetes.io/enforce: privileged
+          pod-security.kubernetes.io/audit: privileged
+          pod-security.kubernetes.io/warn: privileged
+      - name: openebs
+        labels:
+          pod-security.kubernetes.io/enforce: privileged
+          pod-security.kubernetes.io/audit: privileged
+          pod-security.kubernetes.io/warn: privileged
+      - name: volsync-system
+      - name: reloader

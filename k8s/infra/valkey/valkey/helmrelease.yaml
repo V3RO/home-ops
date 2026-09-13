@@ -1,0 +1,80 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: valkey
+  namespace: flux-system
+spec:
+  interval: 5m
+  timeout: 5m
+  chart:
+    spec:
+      chart: ./k8s/infra/valkey/valkey
+      sourceRef:
+        kind: GitRepository
+        name: flux-system
+        namespace: flux-system
+      reconcileStrategy: Revision
+  releaseName: valkey
+  targetNamespace: valkey
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+  values:
+    valkey:
+      auth:
+        enabled: true
+        usersExistingSecret: valkey-auth
+        aclUsers:
+          default:
+            permissions: "~* &* +@all"
+            passwordKey: valkey-password
+
+      replica:
+        enabled: true
+        replicas: 2
+        replicationUser: default
+        persistence:
+          size: 2Gi
+          storageClass: openebs-hostpath
+
+      valkeyConfig: |-
+        # Enable AOF persistence for better durability
+        appendonly yes
+        # Disable snapshots since AOF is enabled
+        save ""
+        # Cap memory usage to keep the cache lightweight
+        maxmemory 256mb
+        maxmemory-policy allkeys-lru
+
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: 250m
+          memory: 256Mi
+
+      metrics:
+        enabled: true
+
+      podDisruptionBudget:
+        enabled: true
+        maxUnavailable: 1
+
+      # Spread the 3 pods across distinct nodes when possible, without blocking
+      # scheduling (or a rollout) if a matching node isn't free.
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: valkey
+                    app.kubernetes.io/instance: valkey
+                topologyKey: kubernetes.io/hostname
+

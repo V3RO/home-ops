@@ -1,0 +1,81 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: democratic-csi-nfs
+  namespace: flux-system
+spec:
+  interval: 5m
+  timeout: 10m
+  chart:
+    spec:
+      chart: ./k8s/infra/democratic-csi/democratic-csi-nfs
+      sourceRef:
+        kind: GitRepository
+        name: flux-system
+        namespace: flux-system
+      reconcileStrategy: Revision
+  releaseName: democratic-csi-nfs
+  targetNamespace: democratic-csi
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+  values:
+    truenas:
+      host: 10.1.10.20
+      port: 443
+      allowInsecure: true
+      datasetParentName: hdd/k8s/n/v
+      detachedSnapshotsDatasetParentName: hdd/k8s/n/s
+
+    democratic-csi:
+      csiDriver:
+        name: org.democratic-csi.nfs
+
+      driver:
+        existingConfigSecret: truenas-nfs-config
+        config:
+          driver: freenas-api-nfs
+          nameTemplate: "{{ .pvc.metadata.name }}-{{ .pvc.metadata.uid | trunc 6 }}"
+
+      storageClasses:
+        - name: truenas-nfs-media
+          defaultClass: false
+          reclaimPolicy: Retain
+          volumeBindingMode: Immediate
+          allowVolumeExpansion: true
+          parameters:
+            fsType: nfs
+            namePrefix: nfs-
+          mountOptions:
+            - noatime
+            - nfsvers=4
+            - rsize=131072
+            - wsize=131072
+
+      volumeSnapshotClasses:
+        - name: truenas-nfs
+          deletionPolicy: Retain
+          parameters:
+            detachedSnapshots: "true"
+
+      controller:
+        externalSnapshotter:
+          enabled: true
+        tolerations:
+          - key: node-role.kubernetes.io/control-plane
+            effect: NoSchedule
+        driver:
+          image:
+            tag: v1.9.5
+      node:
+        driver:
+          image:
+            tag: v1.9.5
+        tolerations:
+          - key: node-role.kubernetes.io/control-plane
+            effect: NoSchedule
+

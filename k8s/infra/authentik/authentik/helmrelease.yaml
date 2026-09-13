@@ -1,0 +1,496 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: authentik
+  namespace: flux-system
+spec:
+  interval: 5m
+  timeout: 15m
+  chart:
+    spec:
+      chart: ./k8s/infra/authentik/authentik
+      sourceRef:
+        kind: GitRepository
+        name: flux-system
+        namespace: flux-system
+      reconcileStrategy: Revision
+  releaseName: authentik
+  targetNamespace: authentik
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+  values:
+    authentik:
+      global:
+        affinity:
+          podAntiAffinity: soft
+        deploymentStrategy:
+          type: RollingUpdate
+          rollingUpdate:
+            maxSurge: 25%
+            maxUnavailable: 25%
+
+        env:
+          - name: AUTHENTIK_POSTGRESQL__HOST
+            valueFrom:
+              secretKeyRef:
+                name: authentik-postgres-app
+                key: host
+          - name: AUTHENTIK_POSTGRESQL__NAME
+            valueFrom:
+              secretKeyRef:
+                name: authentik-postgres-app
+                key: dbname
+          - name: AUTHENTIK_POSTGRESQL__USER
+            valueFrom:
+              secretKeyRef:
+                name: authentik-postgres-app
+                key: username
+          - name: AUTHENTIK_POSTGRESQL__PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: cnpg-authentik-credentials
+                key: password
+          - name: AUTHENTIK_POSTGRESQL__PORT
+            valueFrom:
+              secretKeyRef:
+                name: authentik-postgres-app
+                key: port
+          - name: AUTHENTIK_ARGOCD_CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: authentik-secret
+                key: argocdClientSecret
+          - name: AUTHENTIK_GRAFANA_CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: authentik-secret
+                key: grafanaClientSecret
+          - name: AUTHENTIK_MEALIE_CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: authentik-secret
+                key: mealieClientSecret
+          - name: AUTHENTIK_ZOT_CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: authentik-secret
+                key: zotClientSecret
+          - name: AUTHENTIK_FORGEJO_CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: authentik-secret
+                key: forgejoClientSecret
+          - name: AUTHENTIK_ACTUAL_CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: authentik-secret
+                key: actualClientSecret
+          - name: AUTHENTIK_IMMICH_CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: authentik-secret
+                key: immichClientSecret
+          - name: AUTHENTIK_KIALI_CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: authentik-secret
+                key: kialiClientSecret
+          - name: AUTHENTIK_FLUX_CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: authentik-secret
+                key: fluxClientSecret
+          - name: AUTHENTIK_USER_PASSWORD_V3RO
+            valueFrom:
+              secretKeyRef:
+                name: authentik-secret
+                key: userPassword-V3RO
+          - name: AUTHENTIK_USER_PASSWORD_JELLYFIN_LDAP
+            valueFrom:
+              secretKeyRef:
+                name: authentik-secret
+                key: userPassword-jellyfin-ldap
+      authentik:
+        existingSecret:
+          secretName: authentik-secret
+
+      server:
+        replicas: 3
+      worker:
+        replicas: 3
+
+      postgresql:
+        enabled: false
+
+      blueprints:
+        configMaps:
+          - blueprint-argocd
+          - blueprint-grafana
+          - blueprint-outpost-service-connections
+          - blueprint-n8n
+          - blueprint-jellyseerr
+          - blueprint-sonarr
+          - blueprint-radarr
+          - blueprint-prowlarr
+          - blueprint-qbittorrent
+          - blueprint-jellyfin
+          - blueprint-mealie
+          - blueprint-zot
+          - blueprint-forgejo
+          - blueprint-adguard
+          - blueprint-actual
+          - blueprint-immich
+          - blueprint-kiali
+          - blueprint-flux
+          - blueprint-valkey-admin
+          - blueprint-proxy-outpost
+          - blueprint-users
+          - blueprint-enrollment
+
+        users:
+          - username: V3RO
+            name: Mario Schober
+            email: mario@schober.dev
+            passwordEnv: AUTHENTIK_USER_PASSWORD_V3RO
+            groups:
+              - authentik Admins
+              - homelab-users
+              - homelab-admins
+          - username: jellyfin-ldap
+            name: Jellyfin LDAP
+            email: jellyfin-ldap@schober.dev
+            passwordEnv: AUTHENTIK_USER_PASSWORD_JELLYFIN_LDAP
+
+        groups:
+          - name: homelab-users
+          - name: homelab-admins
+
+        outposts:
+          serviceConnections:
+            - name: Local Kubernetes Cluster
+              kind: kubernetes
+              local: true
+          defaults:
+            serviceConnectionName: Local Kubernetes Cluster
+          proxy:
+            enabled: true
+            name: proxy
+            kubernetesReplicas: 1
+            authentikHost: http://authentik-server.authentik.svc.cluster.local
+            authentikHostBrowser: https://auth.schober.dev
+            kubernetesDisabledComponents:
+              - ingress
+              - httproute
+
+        data:
+          - name: argocd
+            provider:
+              kind: oauth2
+              name: ArgoCD
+              clientId: argocd
+              clientSecretEnv: AUTHENTIK_ARGOCD_CLIENT_SECRET
+              includeGroups: true
+              redirectUris:
+                - url: https://argo.schober.dev/api/dex/callback
+                  matchingMode: strict
+                - url: http://localhost:8085/auth/callback
+                  matchingMode: strict
+            application:
+              name: ArgoCD
+              slug: argocd
+              metaLaunchUrl: https://argo.schober.dev
+              icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/argo-cd.svg
+            access: admin
+          - name: grafana
+            provider:
+              kind: oauth2
+              name: Grafana
+              clientId: grafana
+              clientSecretEnv: AUTHENTIK_GRAFANA_CLIENT_SECRET
+              includeGroups: true
+              redirectUris:
+                - url: https://grafana.schober.dev/login/generic_oauth
+                  matchingMode: strict
+            application:
+              name: Grafana
+              slug: grafana
+              metaLaunchUrl: https://grafana.schober.dev
+              icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/grafana.svg
+            access: admin
+          - name: n8n
+            provider:
+              name: n8n
+              externalHost: https://n8n.schober.dev
+              mode: forward_single
+            application:
+              name: n8n
+              slug: n8n
+              metaLaunchUrl: https://n8n.schober.dev
+              icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/n8n.svg
+            access: admin
+          - name: jellyseerr
+            provider:
+              name: Jellyseerr
+              externalHost: https://seerr.schober.dev
+              mode: forward_single
+            application:
+              name: Jellyseerr
+              slug: jellyseerr
+              metaLaunchUrl: https://seerr.schober.dev
+              icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/jellyseerr.svg
+            access: admin
+          - name: sonarr
+            provider:
+              name: Sonarr
+              externalHost: https://sonarr.schober.dev
+              mode: forward_single
+            application:
+              name: Sonarr
+              slug: sonarr
+              metaLaunchUrl: https://sonarr.schober.dev
+              icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/sonarr.svg
+            access: admin
+          - name: radarr
+            provider:
+              name: Radarr
+              externalHost: https://radarr.schober.dev
+              mode: forward_single
+            application:
+              name: Radarr
+              slug: radarr
+              metaLaunchUrl: https://radarr.schober.dev
+              icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/radarr.svg
+            access: admin
+          - name: prowlarr
+            provider:
+              name: Prowlarr
+              externalHost: https://prowlarr.schober.dev
+              mode: forward_single
+            application:
+              name: Prowlarr
+              slug: prowlarr
+              metaLaunchUrl: https://prowlarr.schober.dev
+              icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/prowlarr.svg
+            access: admin
+          - name: qbittorrent
+            provider:
+              name: qBittorrent
+              externalHost: https://qbit.schober.dev
+              mode: forward_single
+            application:
+              name: qBittorrent
+              slug: qbittorrent
+              metaLaunchUrl: https://qbit.schober.dev
+              icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/qbittorrent.svg
+            access: admin
+          - name: valkey-admin
+            provider:
+              name: Valkey Admin
+              externalHost: https://valkey-admin.schober.dev
+              mode: forward_single
+            application:
+              name: Valkey Admin
+              slug: valkey-admin
+              metaLaunchUrl: https://valkey-admin.schober.dev
+              icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/valkey.svg
+            access: admin
+          - name: jellyfin
+            provider:
+              kind: ldap
+              name: Jellyfin LDAP
+              baseDn: dc=ldap,dc=schober,dc=dev
+              permissions:
+                - permission: authentik_providers_ldap.search_full_directory
+                  user: jellyfin-ldap
+            outpost:
+              enabled: true
+              name: jellyfin-ldap
+              authentikHost: http://authentik-server.authentik.svc.cluster.local
+              authentikHostBrowser: https://auth.schober.dev
+            application:
+              name: Jellyfin
+              slug: jellyfin
+              metaLaunchUrl: https://jellyfin.schober.dev
+              icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/jellyfin.svg
+            access: user
+          - name: mealie
+            provider:
+              kind: oauth2
+              name: Mealie
+              clientId: mealie
+              clientSecretEnv: AUTHENTIK_MEALIE_CLIENT_SECRET
+              includeGroups: true
+              redirectUris:
+                - url: https://mealie.schober.dev/login
+                  matchingMode: strict
+                - url: https://mealie.schober.dev/login?direct=1
+                  matchingMode: strict
+            application:
+              name: Mealie
+              slug: mealie
+              metaLaunchUrl: https://mealie.schober.dev
+              icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/mealie.svg
+            access: user
+          - name: zot
+            provider:
+              kind: oauth2
+              name: Zot
+              clientId: zot
+              clientSecretEnv: AUTHENTIK_ZOT_CLIENT_SECRET
+              includeGroups: true
+              redirectUris:
+                - url: https://zot.schober.dev/zot/auth/callback/oidc
+                  matchingMode: strict
+            application:
+              name: Zot
+              slug: zot
+              metaLaunchUrl: https://zot.schober.dev
+              icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/zot-registry.svg
+            access: admin
+          - name: forgejo
+            provider:
+              kind: oauth2
+              name: Forgejo
+              clientId: forgejo
+              clientSecretEnv: AUTHENTIK_FORGEJO_CLIENT_SECRET
+              redirectUris:
+                - url: https://git.schober.dev/user/oauth2/authentik/callback
+                  matchingMode: strict
+            application:
+              name: Forgejo
+              slug: forgejo
+              metaLaunchUrl: https://git.schober.dev
+              icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/forgejo.svg
+            access: user
+          - name: adguard
+            provider:
+              name: AdGuard Home
+              externalHost: https://adguard.schober.dev
+              mode: forward_single
+              unauthenticatedPaths:
+                - ^/control/.*
+            application:
+              name: AdGuard Home
+              slug: adguard
+              metaLaunchUrl: https://adguard.schober.dev
+              icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/adguard-home.svg
+            access: admin
+          - name: actual
+            provider:
+              kind: oauth2
+              name: Actual Budget
+              clientId: actual
+              clientSecretEnv: AUTHENTIK_ACTUAL_CLIENT_SECRET
+              redirectUris:
+                - url: https://actual.schober.dev/openid/callback
+                  matchingMode: strict
+            application:
+              name: Actual Budget
+              slug: actual
+              metaLaunchUrl: https://actual.schober.dev
+              icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/actual-budget.svg
+            access: user
+          - name: immich
+            provider:
+              kind: oauth2
+              name: Immich
+              clientId: immich
+              clientSecretEnv: AUTHENTIK_IMMICH_CLIENT_SECRET
+              immichRoleClaim: true
+              redirectUris:
+                - url: https://immich.schober.dev/auth/login
+                  matchingMode: strict
+                - url: https://immich.schober.dev/user-settings
+                  matchingMode: strict
+                - url: app.immich:///oauth-callback
+                  matchingMode: strict
+            application:
+              name: Immich
+              slug: immich
+              metaLaunchUrl: https://immich.schober.dev
+              icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/immich.svg
+            access: user
+          - name: kiali
+            provider:
+              kind: oauth2
+              name: Kiali
+              clientId: kiali
+              clientSecretEnv: AUTHENTIK_KIALI_CLIENT_SECRET
+              redirectUris:
+                - url: https://kiali.schober.dev
+                  matchingMode: strict
+                - url: https://kiali.schober.dev/
+                  matchingMode: strict
+                - url: https://kiali.schober.dev:443
+                  matchingMode: strict
+                - url: https://kiali.schober.dev:443/
+                  matchingMode: strict
+            application:
+              name: Kiali
+              slug: kiali
+              metaLaunchUrl: https://kiali.schober.dev
+              icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/kiali.svg
+            access: admin
+          - name: flux
+            provider:
+              kind: oauth2
+              name: Flux
+              clientId: flux-web
+              clientSecretEnv: AUTHENTIK_FLUX_CLIENT_SECRET
+              includeGroups: true
+              redirectUris:
+                - url: https://flux.schober.dev/oauth2/callback
+                  matchingMode: strict
+            application:
+              name: Flux
+              slug: flux
+              metaLaunchUrl: https://flux.schober.dev
+              icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/flux-cd.svg
+            access: admin
+
+    postgres:
+      imageName: ghcr.io/cloudnative-pg/postgresql:18.1
+      storage:
+        class: openebs-hostpath
+        size: 5Gi
+      restore: false
+
+    externalSecret:
+      enabled: true
+      secretStoreRef:
+        name: bitwarden-app-secrets
+        kind: ClusterSecretStore
+      data:
+        secretKey: authentik-secret-key
+        bootstrapPassword: authentik-bootstrap-password
+        bootstrapEmail: authentik-bootstrap-email
+        bootstrapToken: authentik-bootstrap-token
+        argocdClientSecret: authentik-argocd-client-secret
+        grafanaClientSecret: authentik-grafana-client-secret
+        mealieClientSecret: authentik-mealie-client-secret
+        zotClientSecret: zot-oidc-client-secret
+        forgejoClientSecret: authentik-forgejo-client-secret
+        actualClientSecret: authentik-actual-client-secret
+        immichClientSecret: authentik-immich-client-secret
+        kialiClientSecret: authentik-kiali-client-secret
+        fluxClientSecret: authentik-flux-client-secret
+        userPasswords:
+          - username: V3RO
+            bitwardenItem: authentik-user-v3ro-password
+          - username: jellyfin-ldap
+            bitwardenItem: authentik-user-jellyfin-ldap-password
+        cnpgPassword: authentik-db-secret
+
+    route:
+      enabled: true
+      hostname: auth.schober.dev
+      gatewayName: internal-gateway
+      gatewayNamespace: istio-ingress-internal
+      gatewaySectionName: https
+      serviceName: authentik-server
+      servicePort: 80

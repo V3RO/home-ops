@@ -1,0 +1,41 @@
+{{- $postgres := default dict .Values.postgres -}}
+{{- if (default false (get $postgres "enabled")) }}
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ default "mealie-postgres" (get $postgres "clusterName") }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  instances: {{ default 1 (get $postgres "instances") }}
+  imageName: {{ get $postgres "imageName" }}
+  storage:
+    pvcTemplate:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: {{ default "10Gi" (get (default dict (get $postgres "storage")) "size") }}
+      {{- with (get (default dict (get $postgres "storage")) "class") }}
+      storageClassName: {{ . }}
+      {{- end }}
+      {{- with (get (default dict (get $postgres "storage")) "volumeName") }}
+      volumeName: {{ . }}
+      {{- end }}
+  managed:
+    roles:
+      - name: {{ default "mealie" (get $postgres "owner") }}
+        ensure: present
+        login: true
+        passwordSecret:
+          name: cnpg-{{ default "mealie" (get $postgres "owner") }}-credentials
+  bootstrap:
+    initdb:
+      database: {{ default "mealie" (get $postgres "database") }}
+      owner: {{ default "mealie" (get $postgres "owner") }}
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      enabled: true
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: mealie-versitygw-store
+{{- end }}

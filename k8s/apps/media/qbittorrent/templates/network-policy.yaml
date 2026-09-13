@@ -1,0 +1,131 @@
+{{- if .Values.networkPolicy.enabled }}
+# Default deny all egress from media namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-egress
+  namespace: {{ .Release.Namespace }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    # Allow DNS resolution
+    - ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Allow intra-namespace communication
+    - to:
+        - podSelector: {}
+---
+# Allow Kubernetes API access for all pods (required by cnpg instance pods).
+# The apiserver endpoints are the control-plane node IPs, which Cilium maps
+# to the kube-apiserver identity; standard NetworkPolicy ipBlock rules only
+# match "world"-identity IPs and can never match them.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-kube-apiserver-egress
+  namespace: {{ .Release.Namespace }}
+spec:
+  endpointSelector: {}
+  egress:
+    - toEntities:
+        - kube-apiserver
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: qbittorrent-allow-egress
+  namespace: {{ .Release.Namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      app: qbittorrent
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector: {}
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 169.254.0.0/16
+              - 100.64.0.0/10
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cnpg-allow-egress-versitygw
+  namespace: {{ .Release.Namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/managed-by: cloudnative-pg
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: versitygw
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: versitygw
+      ports:
+        - protocol: TCP
+          port: 7070
+---
+# Allow ingress from istio-ingress-internal (for HTTPRoutes) and intra-namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress
+  namespace: {{ .Release.Namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      app: qbittorrent
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: istio-ingress-internal
+      ports:
+        - protocol: TCP
+          port: {{ .Values.qbittorrent.service.targetPort }}
+    - from:
+        - podSelector:
+            matchLabels:
+              app: sonarr
+      ports:
+        - protocol: TCP
+          port: {{ .Values.qbittorrent.service.targetPort }}
+    - from:
+        - podSelector:
+            matchLabels:
+              app: radarr
+      ports:
+        - protocol: TCP
+          port: {{ .Values.qbittorrent.service.targetPort }}
+    - from:
+        - podSelector:
+            matchLabels:
+              app: prowlarr
+      ports:
+        - protocol: TCP
+          port: {{ .Values.qbittorrent.service.targetPort }}
+    - from:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.proxy.service.port }}
+{{- end }}

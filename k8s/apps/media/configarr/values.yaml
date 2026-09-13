@@ -1,0 +1,93 @@
+image:
+  repository: ghcr.io/raydak-labs/configarr
+  tag: "1.30.2-alpine3.22"
+  pullPolicy: IfNotPresent
+
+schedule: "0 0 * * *"
+concurrencyPolicy: Forbid
+successfulJobsHistoryLimit: 1
+failedJobsHistoryLimit: 1
+backoffLimit: 1
+ttlSecondsAfterFinished: 3600
+restartPolicy: Never
+
+env:
+  TZ: Europe/Vienna
+
+networkPolicy:
+  enabled: true
+
+config:
+  sonarr:
+    baseUrl: http://sonarr.media.svc.cluster.local
+    downloadClientName: qBittorrent
+    category: tv
+    rootFolders:
+      - /data/media/tv
+      - /data/media/anime
+    # TRaSH-Guides quality profile: WEB-2160p (Alternative) - WEB preferred, 1080p
+    # fallback, Bluray-2160p (no remux) as fallback if no WEB release exists.
+    # NOTE: name must exactly match the official TRaSH profile name - configarr's
+    # `include: template:` has no rename override, it always (re)creates the profile
+    # under this name, and our own custom_format_groups/custom_formats/
+    # cloneQualityProfiles blocks below target this same name to attach scores to it.
+    profile:
+      name: WEB-2160p (Alternative)
+      trashId: dfa5eaae7894077ad6449169b6eb03e0
+    # Cloned profile with German language boost, assign to German-only series.
+    # Free to name however you like - this is a clone target, not an include, so
+    # there's no official name it has to match.
+    germanProfile:
+      name: WEB-2160p (Alternative) (German)
+    # TRaSH-Guides anime quality profile - BD/WEB release-group tiers, dual audio, etc.
+    animeProfile:
+      name: "[Anime] Remux-1080p"
+      trashId: 20e0fc959f1f1704bed501f23bdae76f
+  radarr:
+    baseUrl: http://radarr.media.svc.cluster.local
+    downloadClientName: qBittorrent
+    category: movies
+    rootFolders:
+      - /data/media/movies
+      - /data/media/anime-movies
+    # TRaSH-Guides quality profile: UHD Bluray + WEB - Bluray-2160p preferred over
+    # WEB-2160p (no remux). NOTE: name must exactly match the official TRaSH profile
+    # name - configarr's `include: template:` has no rename override, it always
+    # (re)creates the profile under this name, and our own custom_format_groups/
+    # custom_formats/cloneQualityProfiles blocks below target this name to attach scores to it.
+    profile:
+      name: UHD Bluray + WEB
+      trashId: 64fb5f9858489bdac2af690e27c8f42f
+    # Cloned profile with German language boost, assign to German-only movies.
+    # Free to name however you like - this is a clone target, not an include, so
+    # there's no official name it has to match.
+    germanProfile:
+      name: UHD Bluray + WEB (German)
+    # No stock TRaSH-Guides anime profile for Radarr, so this is cloned from the
+    # base profile and scored with the TRaSH anime custom-format groups instead.
+    animeProfile:
+      name: Anime
+    # Manual-pick fallback profile (Bluray-1080p preferred, WEB-1080p fallback, no
+    # remux) for movies with no 4K release yet - select it per-request in Seerr's
+    # advanced request options, not auto-assigned to anything.
+    # NOTE: name must exactly match the official TRaSH profile name, same reason as
+    # the base profile above.
+    hdProfile:
+      name: HD Bluray + WEB
+      trashId: d1d67249d3890e49bc12e275d989a7e9
+  qbittorrent:
+    host: qbittorrent.media.svc.cluster.local
+    port: 80
+    useSsl: false
+    urlBase: /
+
+externalSecret:
+  enabled: true
+  refreshInterval: 1h0m0s
+  secretStoreRef:
+    name: bitwarden-app-secrets
+    kind: ClusterSecretStore
+  keys:
+    sonarrApiKey: sonarr-api-key
+    radarrApiKey: radarr-api-key
+    qbittorrentApiKey: qbittorrent-api-key

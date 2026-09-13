@@ -1,0 +1,31 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: node-feature-discovery
+  namespace: flux-system
+spec:
+  interval: 5m
+  timeout: 5m
+  chart:
+    spec:
+      chart: node-feature-discovery
+      version: "0.17.2"
+      sourceRef:
+        kind: HelmRepository
+        name: node-feature-discovery-repo
+        namespace: flux-system
+  releaseName: node-feature-discovery
+  targetNamespace: node-feature-discovery
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+    crds: CreateReplace
+  values:
+    worker:
+      config:
+        core:
+          sleepInterval: 0s

@@ -1,0 +1,35 @@
+{{- with .Values.authentik.blueprints.outposts.serviceConnections }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: blueprint-outpost-service-connections
+  namespace: {{ $.Release.Namespace }}
+data:
+  outpost-service-connections.yaml: |
+    # yaml-language-server: $schema=https://goauthentik.io/blueprints/schema.json
+    version: 1
+    metadata:
+      name: Outpost Service Connections
+      labels:
+        blueprints.goauthentik.io/description: "Blueprint for Authentik outpost service connections"
+    entries:
+      {{- range . }}
+      {{- if eq .kind "kubernetes" }}
+      - model: authentik_outposts.kubernetesserviceconnection
+        id: outpost-service-connection-{{ .name | lower | replace " " "-" }}
+        state: present
+        identifiers:
+          name: {{ .name }}
+        attrs:
+          name: {{ .name }}
+          local: {{ default false .local }}
+          verify_ssl: {{ default true .verifySsl }}
+          {{- if and (default false .local) (not .kubeconfig) }}
+          kubeconfig: {}
+          {{- else if .kubeconfig }}
+          kubeconfig: {{ .kubeconfig }}
+          {{- end }}
+      {{- end }}
+      {{- end }}
+{{- end }}

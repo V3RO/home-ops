@@ -1,0 +1,70 @@
+home-ops-chart:
+  image:
+    repository: ghcr.io/vert-sh/vertd
+    tag: "latest"
+    pullPolicy: Always
+
+  ports:
+    - name: http
+      containerPort: 24153
+      protocol: TCP
+
+  env:
+    - name: PUBLIC_URL
+      value: "https://vertd.schober.dev"
+    - name: ADMIN_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: vertd-home-ops-chart-secrets
+          key: admin-password
+
+  resources:
+    limits:
+      gpu.intel.com/i915: "1"
+
+  livenessProbe:
+    httpGet:
+      path: /
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 30
+
+  readinessProbe:
+    httpGet:
+      path: /
+      port: http
+    initialDelaySeconds: 5
+    periodSeconds: 10
+
+  service:
+    ports:
+      - port: 24153
+        targetPort: http
+        protocol: TCP
+        name: http
+
+  httpRoute:
+    enabled: true
+    hostnames:
+      - vertd.schober.dev
+    parentRefs:
+      - name: internal-gateway
+        namespace: istio-ingress-internal
+        sectionName: https
+    rules:
+      - backendRefs:
+          - name: vertd-home-ops-chart
+            port: 24153
+
+  externalSecrets:
+    secrets:
+      enabled: true
+      refreshInterval: 1h0m0s
+      secretStoreRef:
+        kind: ClusterSecretStore
+        name: bitwarden-app-secrets
+      data:
+        - secretKey: admin-password
+          remoteRef:
+            key: vertd-admin-password
+      injectAsEnv: false

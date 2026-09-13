@@ -1,0 +1,26 @@
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: cloudflare-letsencrypt
+  namespace: {{ .Release.Namespace }}
+spec:
+  acme:
+    {{- if .Values.staging.enabled }}
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    {{- else }}
+    server: https://acme-v02.api.letsencrypt.org/directory
+    {{- end }}
+    profile: tlsserver
+    privateKeySecretRef:
+      {{- if .Values.staging.enabled }}
+      name: cloudflare-acme-staging
+      {{- else }}
+      name: cloudflare-acme-prod
+      {{- end }}
+    solvers:
+      - dns01:
+          cloudflare:
+            apiTokenSecretRef:
+              name: cloudflare-api-token
+              key: api-token
+          cnameStrategy: Follow

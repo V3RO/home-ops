@@ -1,0 +1,57 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: configarr
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: configarr
+spec:
+  schedule: {{ .Values.schedule | quote }}
+  concurrencyPolicy: {{ .Values.concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ .Values.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      backoffLimit: {{ .Values.backoffLimit }}
+      ttlSecondsAfterFinished: {{ .Values.ttlSecondsAfterFinished }}
+      template:
+        metadata:
+          labels:
+            app: configarr
+        spec:
+          restartPolicy: {{ .Values.restartPolicy }}
+          containers:
+            - name: configarr
+              image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              tty: true
+              env:
+                - name: TZ
+                  value: {{ .Values.env.TZ | quote }}
+                - name: SONARR_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: configarr-secret
+                      key: SONARR_API_KEY
+                - name: RADARR_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: configarr-secret
+                      key: RADARR_API_KEY
+                - name: QBITTORRENT_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: configarr-secret
+                      key: QBITTORRENT_API_KEY
+              volumeMounts:
+                - name: config
+                  mountPath: /app/config/config.yml
+                  subPath: config.yml
+                - name: repos
+                  mountPath: /app/repos
+          volumes:
+            - name: config
+              configMap:
+                name: configarr-config
+            - name: repos
+              emptyDir: {}

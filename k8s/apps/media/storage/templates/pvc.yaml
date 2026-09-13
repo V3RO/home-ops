@@ -1,0 +1,16 @@
+{{- $adopt := .Values.adopt | default dict }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.claimName }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  accessModes:
+    - {{ .Values.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.size }}
+  storageClassName: {{ .Values.storageClass }}
+  {{- if $adopt.dataset }}
+  volumeName: {{ .Values.claimName }}
+  {{- end }}

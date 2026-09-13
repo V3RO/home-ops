@@ -1,0 +1,30 @@
+{{- $svc := default dict .Values.service -}}
+{{- $dns := default dict (get $svc "dns") -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: adguard-dns
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    # Instruct external-dns to NOT create a DNS record for this LoadBalancer service;
+    # DNS clients should reference the IP directly, not via a hostname.
+    external-dns.alpha.kubernetes.io/exclude: "true"
+    {{- with (get $dns "loadBalancerIP") }}
+    {{- if . }}
+    io.cilium/lb-ipam-ips: {{ . | quote }}
+    {{- end }}
+    {{- end }}
+spec:
+  type: LoadBalancer
+  selector:
+    app.kubernetes.io/name: home-ops-chart
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - name: dns-udp
+      port: {{ default 53 (get $dns "port") }}
+      targetPort: 53
+      protocol: UDP
+    - name: dns-tcp
+      port: {{ default 53 (get $dns "port") }}
+      targetPort: 53
+      protocol: TCP

@@ -1,0 +1,5 @@
+apiVersion: v2
+name: namespaces
+version: 0.1.0
+description: "Chart to configure namespaces"
+type: application

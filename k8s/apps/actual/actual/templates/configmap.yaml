@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: actual-config-template
+  namespace: actual
+data:
+  config.json.tpl: |
+    {
+      "loginMethod": "openid",
+      "openId": {
+        "discoveryURL": "https://auth.schober.dev/application/o/actual/.well-known/openid-configuration",
+        "client_id": "actual",
+        "client_secret": "${ACTUAL_OPENID_CLIENT_SECRET}",
+        "server_hostname": "https://actual.schober.dev"
+      }
+    }

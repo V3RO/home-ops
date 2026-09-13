@@ -1,0 +1,110 @@
+n8n:
+  fullnameOverride: n8n
+
+  ingress:
+    enabled: false
+
+  main:
+    config:
+      n8n:
+        host: n8n.schober.dev
+        port: 5678
+        protocol: https
+        editor_base_url: https://n8n.schober.dev
+        public_api_url: https://n8n.schober.dev
+        webhook_url: https://n8n.schober.dev
+        secure_cookie: true
+        diagnostics_enabled: false
+      executions:
+        mode: regular
+      db:
+        type: postgresdb
+        postgresdb:
+          host: n8n-postgres-rw.n8n.svc.cluster.local
+          port: 5432
+          database: n8n
+          user: n8n
+    extraEnv:
+      DB_POSTGRESDB_PASSWORD:
+        valueFrom:
+          secretKeyRef:
+            name: cnpg-n8n-credentials
+            key: password
+      QUEUE_BULL_REDIS_PASSWORD:
+        valueFrom:
+          secretKeyRef:
+            name: n8n-secret
+            key: REDIS_PASSWORD
+      N8N_ENCRYPTION_KEY:
+        valueFrom:
+          secretKeyRef:
+            name: n8n-secret
+            key: ENCRYPTION_KEY
+    persistence:
+      enabled: true
+      existingClaim: n8n
+
+  valkey:
+    enabled: false
+
+postgres:
+  enabled: true
+  clusterName: n8n-postgres
+  instances: 3
+  imageName: ghcr.io/cloudnative-pg/postgresql:18.1
+  storage:
+    class: openebs-hostpath
+    size: 5Gi
+  database: n8n
+  owner: n8n
+  restore: false
+
+pvc:
+  storageClass: longhorn
+  size: 5Gi
+
+app:
+  host: n8n.schober.dev
+  gateway:
+    name: internal-gateway
+    namespace: istio-ingress-internal
+    sectionName: https
+  backendServiceName: n8n
+  servicePort: 80
+  authentik:
+    enabled: true
+    outpostService:
+      name: ak-outpost-proxy
+      namespace: authentik
+      port: 9000
+    extAuth:
+      pathPrefix: /outpost.goauthentik.io/auth/envoy
+      headersToForward:
+        - cookie
+      headersToBackend:
+        - set-cookie
+        - x-authentik-username
+        - x-authentik-groups
+        - x-authentik-entitlements
+        - x-authentik-email
+        - x-authentik-name
+        - x-authentik-uid
+        - x-authentik-jwt
+        - x-authentik-meta-jwks
+        - x-authentik-meta-outpost
+        - x-authentik-meta-provider
+        - x-authentik-meta-app
+        - x-authentik-meta-version
+      headersToClientOnSuccess:
+        - cookie
+
+externalSecret:
+  enabled: true
+  refreshInterval: 1h0m0s
+  secretStoreRef:
+    name: bitwarden-app-secrets
+    kind: ClusterSecretStore
+  keys:
+    encryption: n8n-encryption-key
+    redisPassword: valkey-password
+    cnpgPassword: n8n-db-secret

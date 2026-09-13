@@ -1,0 +1,62 @@
+{{- /*
+The IAM backend's own bucket. No policy: only the root credential touches it
+(see iam.type=s3 in the HelmRelease and BOOTSTRAP.md).
+*/}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  # Hashed because spec.template is immutable; see versitygw-create-users.
+  name: iam-bucket-setup-{{ printf "%s|%s"
+        ($.Files.Get "files/bucket-setup.sh" | sha256sum)
+        .Values.versitygw.gateway.region | sha256sum | trunc 8 }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  # Generous because these Jobs are scheduled alongside versitygw on a
+  # fresh cluster. The scripts wait for the gateway themselves; this is
+  # the outer guard for the pod dying some other way.
+  backoffLimit: 6
+  ttlSecondsAfterFinished: {{ .Values.jobTTLSecondsAfterFinished }}
+  template:
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 100
+        runAsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+        - name: scripts
+          configMap:
+            name: versitygw-setup-scripts
+      containers:
+        - name: bucket-setup
+          image: curlimages/curl:8.11.1
+          command: ["sh", "/scripts/bucket-setup.sh"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+              readOnly: true
+          env:
+            - name: ADMIN
+              value: http://versitygw.{{ .Release.Namespace }}.svc.cluster.local:7071
+            - name: S3
+              value: http://versitygw.{{ .Release.Namespace }}.svc.cluster.local:7070
+            - name: SIGV4
+              value: aws:amz:{{ .Values.versitygw.gateway.region }}:s3
+            - name: BUCKET
+              value: iam
+            - name: ROOT_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: versitygw-credentials
+                  key: rootAccessKeyId
+            - name: ROOT_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: versitygw-credentials
+                  key: rootSecretAccessKey

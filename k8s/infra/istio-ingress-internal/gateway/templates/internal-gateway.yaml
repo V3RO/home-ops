@@ -1,0 +1,50 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: internal-gateway
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    cert-manager.io/cluster-issuer: cloudflare-letsencrypt
+spec:
+  gatewayClassName: kgateway
+  listeners:
+    - name: git-ssh
+      protocol: TCP
+      port: 22
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              kubernetes.io/metadata.name: forgejo
+    - hostname: "*.versitygw.schober.dev"
+      name: versitygw-https
+      protocol: HTTPS
+      port: 443
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              kubernetes.io/metadata.name: versitygw
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: versitygw-schober-dev-tls
+            kind: Secret
+            namespace: {{ .Release.Namespace }}
+            group: ""
+    - hostname: "*.schober.dev"
+      name: https
+      protocol: HTTPS
+      port: 443
+      allowedRoutes:
+        namespaces:
+          from: All
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: schober-dev-tls
+            kind: Secret
+            namespace: {{ .Release.Namespace }}
+            group: ""

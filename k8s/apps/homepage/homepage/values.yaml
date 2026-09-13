@@ -1,0 +1,100 @@
+home-ops-chart:
+  image:
+    repository: ghcr.io/gethomepage/homepage
+    tag: v1.10.1
+  ports:
+    - name: http
+      containerPort: 3000
+      protocol: TCP
+  env:
+    - name: HOMEPAGE_ALLOWED_HOSTS
+      value: home.schober.dev
+    - name: LOG_LEVEL
+      value: debug
+    - name: HOMEPAGE_VAR_PROTON
+      valueFrom:
+        secretKeyRef:
+          name: homepage-home-ops-chart-secrets
+          key: homepage-proton-calendar-url
+    - name: HOMEPAGE_VAR_AUTHENTIK
+      valueFrom:
+        secretKeyRef:
+          name: homepage-home-ops-chart-secrets
+          key: homepage-authentik-api-token
+    - name: HOMEPAGE_VAR_MEALIE
+      valueFrom:
+        secretKeyRef:
+          name: homepage-home-ops-chart-secrets
+          key: homepage-mealie-api-token
+  service:
+    ports:
+      - port: 3000
+        targetPort: http
+        protocol: TCP
+        name: http
+  httpRoute:
+    enabled: true
+    hostnames:
+    - home.schober.dev
+    parentRefs:
+        - name: internal-gateway
+          namespace: istio-ingress-internal
+          sectionName: https
+    rules:
+      - backendRefs:
+          - name: homepage-home-ops-chart
+            port: 3000
+
+  extraVolumes:
+    - name: homepage-config
+      configMap:
+        name: homepage
+    - name: logs
+      emptyDir: {}
+
+  extraVolumeMounts:
+    - mountPath: /app/config/custom.js
+      name: homepage-config
+      subPath: custom.js
+    - mountPath: /app/config/custom.css
+      name: homepage-config
+      subPath: custom.css
+    - mountPath: /app/config/bookmarks.yaml
+      name: homepage-config
+      subPath: bookmarks.yaml
+    - mountPath: /app/config/docker.yaml
+      name: homepage-config
+      subPath: docker.yaml
+    - mountPath: /app/config/kubernetes.yaml
+      name: homepage-config
+      subPath: kubernetes.yaml
+    - mountPath: /app/config/services.yaml
+      name: homepage-config
+      subPath: services.yaml
+    - mountPath: /app/config/settings.yaml
+      name: homepage-config
+      subPath: settings.yaml
+    - mountPath: /app/config/widgets.yaml
+      name: homepage-config
+      subPath: widgets.yaml
+    - mountPath: /app/config/logs
+      name: logs
+
+  externalSecrets:
+    secrets:
+      enabled: true
+      refreshInterval: 1h0m0s
+      secretStoreRef:
+        kind: ClusterSecretStore
+        name: bitwarden-app-secrets
+      data:
+        - secretKey: homepage-proton-calendar-url
+          remoteRef:
+            key: homepage-proton-calendar
+        - secretKey: homepage-authentik-api-token
+          remoteRef:
+            key: homepage-authentik-api-token
+        - secretKey: homepage-mealie-api-token
+          remoteRef:
+            key: homepage-mealie-api-token
+      injectAsEnv: false

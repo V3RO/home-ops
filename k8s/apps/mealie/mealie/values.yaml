@@ -1,0 +1,90 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/mealie-recipes/mealie
+  tag: v3.11.0
+  pullPolicy: IfNotPresent
+
+service:
+  port: 80
+  targetPort: 9000
+
+app:
+  host: mealie.schober.dev
+  gateway:
+    name: internal-gateway
+    namespace: istio-ingress-internal
+    sectionName: https
+  backendServiceName: mealie
+  servicePort: 80
+
+mealie:
+  env:
+    ALLOW_SIGNUP: "false"
+    PUID: "1000"
+    PGID: "1000"
+    TZ: Europe/Vienna
+    BASE_URL: https://mealie.schober.dev
+    DB_ENGINE: postgres
+    ALLOW_PASSWORD_LOGIN: "false"
+  extraEnv: []
+  secretKey:
+    enabled: true
+    secretName: mealie-secret
+    secretKey: SECRET_KEY
+
+authentik:
+  enabled: true
+  providerName: authentik
+  configurationUrl: https://auth.schober.dev/application/o/mealie/.well-known/openid-configuration
+  clientId: mealie
+  clientSecret:
+    secretName: mealie-secret
+    secretKey: OIDC_CLIENT_SECRET
+  signupEnabled: true
+  autoRedirect: true
+  rememberMe: true
+  groups:
+    users: homelab-users
+    admins: homelab-admins
+
+persistence:
+  enabled: true
+  claimName: mealie-data
+  accessMode: ReadWriteOnce
+  storageClass: longhorn
+  size: 5Gi
+  mountPath: /app/data
+
+postgres:
+  enabled: true
+  clusterName: mealie-postgres
+  instances: 3
+  imageName: ghcr.io/cloudnative-pg/postgresql:18.1
+  storage:
+    class: openebs-hostpath
+    size: 2Gi
+  database: mealie
+  owner: mealie
+  restore: false
+
+database:
+  secretName: mealie-postgres-app
+  passwordSecretName: cnpg-mealie-credentials
+  keys:
+    host: host
+    port: port
+    dbname: dbname
+    username: username
+    password: password
+
+externalSecret:
+  enabled: true
+  refreshInterval: 1h0m0s
+  secretStoreRef:
+    name: bitwarden-app-secrets
+    kind: ClusterSecretStore
+  keys:
+    secretKey: mealie-secret-key
+    oidcClientSecret: authentik-mealie-client-secret
+    cnpgPassword: mealie-db-secret
