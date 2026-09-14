@@ -7,7 +7,7 @@ spec:
   goTemplate: true
   generators:
     - git:
-        repoURL: https://github.com/V3RO/homelab.git
+        repoURL: https://github.com/V3RO/home-ops.git
         revision: main
         directories:
           - path: k8s/apps/*/*
@@ -21,7 +21,7 @@ spec:
     spec:
       project: default
       source:
-        repoURL: https://github.com/V3RO/homelab.git
+        repoURL: https://github.com/V3RO/home-ops.git
         targetRevision: main
         path: '{{ .path.path }}'
         helm:
