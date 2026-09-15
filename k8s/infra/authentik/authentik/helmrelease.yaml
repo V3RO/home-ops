@@ -239,7 +239,7 @@ spec:
               externalHost: https://seerr.schober.dev
               mode: forward_single
             application:
-              name: seerr
+              name: Seerr
               slug: seerr
               metaLaunchUrl: https://seerr.schober.dev
               icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/seerr.svg
