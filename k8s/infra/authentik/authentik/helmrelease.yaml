@@ -243,7 +243,7 @@ spec:
               slug: seerr
               metaLaunchUrl: https://seerr.schober.dev
               icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/seerr.svg
-            access: admin
+            access: user
           - name: sonarr
             provider:
               name: Sonarr
