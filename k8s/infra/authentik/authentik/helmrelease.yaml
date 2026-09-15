@@ -133,7 +133,7 @@ spec:
           - blueprint-grafana
           - blueprint-outpost-service-connections
           - blueprint-n8n
-          - blueprint-jellyseerr
+          - blueprint-seerr
           - blueprint-sonarr
           - blueprint-radarr
           - blueprint-prowlarr
@@ -233,16 +233,16 @@ spec:
               metaLaunchUrl: https://n8n.schober.dev
               icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/n8n.svg
             access: admin
-          - name: jellyseerr
+          - name: seerr
             provider:
-              name: Jellyseerr
+              name: Seerr
               externalHost: https://seerr.schober.dev
               mode: forward_single
             application:
-              name: Jellyseerr
-              slug: jellyseerr
+              name: seerr
+              slug: seerr
               metaLaunchUrl: https://seerr.schober.dev
-              icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/jellyseerr.svg
+              icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/seerr.svg
             access: admin
           - name: sonarr
             provider:
