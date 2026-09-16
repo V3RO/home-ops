@@ -1,0 +1,41 @@
+forgejo-runner:
+  replicaCount: 2
+
+  runner:
+    config:
+      create: true
+      instance: https://git.schober.dev
+
+      existingInitSecret: forgejo-runner-init
+
+      file:
+        runner:
+          capacity: 1
+          labels:
+            - "ubuntu-latest:docker://ghcr.io/catthehacker/ubuntu:act-22.04"
+            - "ubuntu-22.04:docker://ghcr.io/catthehacker/ubuntu:act-22.04"
+            - "k8s:docker://alpine/k8s:1.32.3"
+
+        container:
+          docker_host: "-"
+          valid_volumes:
+            - "**"
+
+  securityContext:
+    privileged: true
+
+  dind:
+    image:
+      registry: docker.io
+      repository: library/docker
+      pullPolicy: IfNotPresent
+      tag: 29.5.2-dind@sha256:6b9cd914eb9c6b342c040a49a27a5eb3804453bae6ecc90f7ff96133595a95e8
+
+externalSecret:
+  enabled: true
+  refreshInterval: 1h0m0s
+  secretStoreRef:
+    name: bitwarden-app-secrets
+    kind: ClusterSecretStore
+  keys:
+    runnerToken: forgejo-default-runner-token

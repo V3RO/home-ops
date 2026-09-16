@@ -1,0 +1,9 @@
+apiVersion: v2
+name: forgejo-runner
+description: "Forgejo Actions runner for homelab"
+type: application
+version: 0.1.0
+dependencies:
+  - name: forgejo-runner
+    version: 0.7.5
+    repository: oci://code.forgejo.org/forgejo-helm
