@@ -115,6 +115,11 @@ health: ## Wait for the cluster to report healthy
 	  --nodes $(CTRL01_IP) \
 	  --control-plane-nodes $(CTRL01_IP),$(CTRL02_IP),$(CTRL03_IP)
 
+shutdown: ## Shutdown cluster
+	talosctl --talosconfig $(TALOSCONFIG) shutdown \
+	  --endpoints $(CTRL01_IP),$(CTRL02_IP),$(CTRL03_IP) \
+	  --nodes $(CTRL01_IP),$(CTRL02_IP),$(CTRL03_IP)
+
 flux: ## Install/upgrade the Flux Operator and apply the Flux bootstrap kustomization (safe to re-run)
 	KUBECONFIG=$(GENERATED)/kubeconfig helm upgrade --install flux-operator \
 	  oci://ghcr.io/controlplaneio-fluxcd/charts/flux-operator \
