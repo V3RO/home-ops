@@ -1,0 +1,218 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: forgejo-runner
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: forgejo-runner
+    release: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: forgejo-runner
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: forgejo-runner
+        release: {{ .Release.Name }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      
+      initContainers:
+        # Wait for Forgejo to be ready
+        - name: wait-for-forgejo
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until wget -q --spider http://forgejo.forgejo.svc.cluster.local:3000; do
+                echo "Waiting for Forgejo to be ready..."
+                sleep 10
+              done
+              echo "Forgejo is ready!"
+        
+        # Register runner with Forgejo (if not already registered)
+        - name: register-runner
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              
+              # Load secrets
+              export RUNNER_UUID=$(cat /run/secrets/runner/uuid)
+              export RUNNER_TOKEN=$(cat /run/secrets/runner/token)
+              
+              echo "Registering runner: $RUNNER_UUID"
+              
+              # Register the runner if not already registered
+              /opt/act/act_runner register \
+                --instance {{ .Values.forgejo.apiUrl }} \
+                --name "{{ .Values.runner.name }}" \
+                --no-interactive || true
+              
+              echo "Runner registration completed"
+          env:
+            - name: RUNNER_LEVEL
+              value: "instance"
+            - name: CONFIG_FILE
+              value: /etc/act/config.yaml
+          volumeMounts:
+            - name: runner-secret
+              mountPath: /run/secrets/runner
+              readOnly: true
+            - name: runner-config
+              mountPath: /etc/act
+              readOnly: true
+      
+      containers:
+        {{- if .Values.container.dind.enabled }}
+        # Docker-in-Docker daemon sidecar
+        - name: dind
+          image: {{ .Values.container.dind.image }}:{{ .Values.container.dind.tag }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            privileged: true
+            capabilities:
+              add:
+                - ALL
+          env:
+            - name: DOCKER_DRIVER
+              value: {{ .Values.container.dind.storageDriver }}
+            - name: DOCKER_STORAGE_DRIVER
+              value: {{ .Values.container.dind.storageDriver }}
+            - name: DOCKER_HOST
+              value: "unix:///var/run/docker.sock"
+          volumeMounts:
+            - name: docker-sock
+              mountPath: /var/run
+          resources:
+            {{- toYaml .Values.container.dind.resources | nindent 12 }}
+          livenessProbe:
+            exec:
+              command:
+                - docker
+                - ps
+            initialDelaySeconds: 10
+            periodSeconds: 10
+        {{- end }}
+        
+        # Act Runner container
+        - name: act-runner
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          command:
+            - /opt/act/act_runner
+            - daemon
+          env:
+            - name: RUNNER_LEVEL
+              value: "instance"
+            - name: RUNNER_NAME
+              value: "{{ .Values.runner.name }}"
+            - name: CONFIG_FILE
+              value: /etc/act/config.yaml
+            - name: LOG_LEVEL
+              value: {{ .Values.env.LOG_LEVEL | quote }}
+            # Forgejo connection
+            - name: RUNNER_INSTANCE
+              value: {{ .Values.forgejo.apiUrl | quote }}
+            # Secrets injected from ExternalSecret
+            - name: RUNNER_UUID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.forgejo.uuidSecretName }}
+                  key: {{ .Values.forgejo.uuidSecretKey }}
+            - name: RUNNER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.forgejo.tokenSecretName }}
+                  key: {{ .Values.forgejo.tokenSecretKey }}
+            # Docker configuration
+            - name: DOCKER_HOST
+              value: "unix:///var/run/docker.sock"
+            - name: DOCKER_BUILDKIT
+              value: "1"
+            {{- range $key, $value := .Values.env }}
+            {{- if and (ne $key "LOG_LEVEL") }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+            {{- end }}
+          
+          volumeMounts:
+            {{- if .Values.container.dind.enabled }}
+            - name: docker-sock
+              mountPath: /var/run
+            {{- end }}
+            - name: runner-config
+              mountPath: /etc/act
+              readOnly: true
+            - name: runner-secret
+              mountPath: /run/secrets/runner
+              readOnly: true
+            - name: runner-work
+              mountPath: /tmp/act
+          
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  ps aux | grep -i "act_runner daemon" | grep -v grep
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  ps aux | grep -i "act_runner daemon" | grep -v grep
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+      
+      volumes:
+        {{- if .Values.container.dind.enabled }}
+        - name: docker-sock
+          emptyDir: {}
+        {{- end }}
+        - name: runner-config
+          configMap:
+            name: forgejo-runner-config
+            defaultMode: 0644
+        - name: runner-secret
+          secret:
+            secretName: {{ .Values.forgejo.tokenSecretName }}
+            defaultMode: 0600
+        - name: runner-work
+          emptyDir: {}
+      
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30

@@ -66,6 +66,8 @@ spec:
       - name: paperless
       - name: zot
       - name: forgejo
+        labels:
+          pod-security.kubernetes.io/enforce: privileged
       - name: external-services
         labels:
           istio.io/dataplane-mode: none

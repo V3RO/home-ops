@@ -1,0 +1,47 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: forgejo-runner-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: forgejo-runner
+    release: {{ .Release.Name }}
+data:
+  # Main runner configuration file (config.yaml)
+  config.yaml: |
+    log:
+      level: {{ .Values.env.LOG_LEVEL }}
+
+    runner:
+      name: {{ .Values.runner.name }}
+      instance: {{ .Values.forgejo.apiUrl }}
+      labels:
+        {{- range .Values.runner.labels }}
+        - {{ . }}
+        {{- end }}
+      capacity: {{ .Values.runner.capacity }}
+      timeout: {{ .Values.runner.timeout }}
+      insecure: {{ .Values.runner.insecure }}
+      fetch:
+        timeout: 5s
+        interval: 2s
+      check:
+        timeout: 5s
+        interval: 15s
+
+    {{- if .Values.container.dind.enabled }}
+    container:
+      privileged: {{ .Values.securityContext.allowPrivilegeEscalation }}
+      network_mode: bridge
+      dns:
+        - 8.8.8.8
+        - 8.8.4.4
+    {{- end }}
+
+    cache:
+      enabled: {{ .Values.runner.cache.enabled }}
+      dir: ""
+      ttl: 259200000000000  # 3 days in nanoseconds
+
+    # These are populated from secrets by the deployment
+    # DO NOT modify the following lines
