@@ -41,7 +41,7 @@ spec:
             - sh
             - -c
             - |
-              until wget -q --spider http://forgejo.forgejo.svc.cluster.local:3000; do
+              until wget -q --spider {{ .Values.forgejo.apiUrl }}; do
                 echo "Waiting for Forgejo to be ready..."
                 sleep 10
               done

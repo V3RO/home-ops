@@ -2,8 +2,8 @@
 
 # Act Runner image settings
 image:
-  repository: forgejo/act_runner
-  tag: "latest"
+  repository: code.forgejo.org/forgejo/runner
+  tag: 13.1.0
   pullPolicy: IfNotPresent
 
 # Number of runner replicas
@@ -61,7 +61,7 @@ runner:
 # Forgejo instance settings
 forgejo:
   # Forgejo API endpoint
-  apiUrl: "http://forgejo.forgejo.svc.cluster.local:3000"
+  apiUrl: "http://forgejo-http.forgejo.svc.cluster.local:3000"
   
   # Runner token from Bitwarden (ExternalSecret will fetch this)
   tokenSecretName: "forgejo-runner-secret"
