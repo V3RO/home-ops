@@ -25,13 +25,30 @@ spec:
           args:
             - |
               cd /data
+
+              echo "Requesting runner registration token from Forgejo API..."
+
+              # Fetch registration token using Personal Access Token (PAT)
+              REG_TOKEN=$(wget -qO- --header="Authorization: token ${FORGEJO_ACCESS_TOKEN}" \
+                --header="Accept: application/json" \
+                "${FORGEJO_INSTANCE_URL}/api/v1/admin/runners/registration-token" \
+                | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
+
+              if [ -z "$REG_TOKEN" ]; then
+                echo "Error: Failed to obtain registration token from Forgejo API."
+                exit 1
+              fi
+
+              echo "Successfully retrieved registration token."
+
               while : ; do
                 forgejo-runner register --no-interactive \
-                  --token "$RUNNER_SECRET" \
+                  --token "$REG_TOKEN" \
                   --name "$RUNNER_NAME" \
                   --instance "$FORGEJO_INSTANCE_URL" && break ;
                 sleep 1 ;
               done ;
+
               forgejo-runner generate-config > /data/config.yml ;
               sed -i -e "s|network: .*|network: host|" /data/config.yml ;
               sed -i -e "s|^  envs:$$|  envs:\n    DOCKER_HOST: tcp://localhost:2376\n    DOCKER_TLS_VERIFY: 1\n    DOCKER_CERT_PATH: /certs/client|" /data/config.yml ;
@@ -42,7 +59,7 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
-            - name: RUNNER_SECRET
+            - name: FORGEJO_ACCESS_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: forgejo-runner-secret
