@@ -358,6 +358,7 @@ spec:
               name: Forgejo
               clientId: forgejo
               clientSecretEnv: AUTHENTIK_FORGEJO_CLIENT_SECRET
+              includeGroups: true
               redirectUris:
                 - url: https://git.schober.dev/user/oauth2/authentik/callback
                   matchingMode: strict

@@ -139,6 +139,8 @@ forgejo:
         autoDiscoverUrl: "https://auth.schober.dev/application/o/forgejo/.well-known/openid-configuration"
         iconUrl: "https://auth.schober.dev/static/dist/assets/icons/icon.png"
         scopes: "openid email profile"
+        groupClaimName: "groups"
+        adminGroup: "homelab-admins"
 
 # --- Custom template values ---
 
