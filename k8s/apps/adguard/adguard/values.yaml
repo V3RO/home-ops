@@ -1,4 +1,4 @@
-home-ops-chart:
+home-ops-app-chart:
   image:
     repository: adguard/adguardhome
     tag: v0.107.73
@@ -65,21 +65,11 @@ home-ops-chart:
         protocol: TCP
         name: http
 
-  httpRoute:
+  home-ops-route-chart:
     enabled: true
-    hostnames:
-      - adguard.schober.dev
-    parentRefs:
-      - name: internal-gateway
-        namespace: istio-ingress-internal
-        sectionName: https
-    rules:
-      - backendRefs:
-          - name: adguard-home-ops-chart
-            port: 80
-
-  authPolicy:
-    enabled: true
+    host: adguard.schober.dev
+    authentik:
+      enabled: true
 
   persistence:
     conf:

@@ -17,7 +17,7 @@ metadata:
 spec:
   type: LoadBalancer
   selector:
-    app.kubernetes.io/name: home-ops-chart
+    app.kubernetes.io/name: {{ default .Release.Name .Values.nameOverride }}
     app.kubernetes.io/instance: {{ .Release.Name }}
   ports:
     - name: dns-udp
