@@ -1,4 +1,4 @@
-home-ops-chart:
+home-ops-app-chart:
   image:
     repository: ghcr.io/gethomepage/homepage
     tag: v1.10.1
@@ -14,17 +14,17 @@ home-ops-chart:
     - name: HOMEPAGE_VAR_PROTON
       valueFrom:
         secretKeyRef:
-          name: homepage-home-ops-chart-secrets
+          name: homepage-secrets
           key: homepage-proton-calendar-url
     - name: HOMEPAGE_VAR_AUTHENTIK
       valueFrom:
         secretKeyRef:
-          name: homepage-home-ops-chart-secrets
+          name: homepage-secrets
           key: homepage-authentik-api-token
     - name: HOMEPAGE_VAR_MEALIE
       valueFrom:
         secretKeyRef:
-          name: homepage-home-ops-chart-secrets
+          name: homepage-secrets
           key: homepage-mealie-api-token
   service:
     ports:
@@ -32,18 +32,12 @@ home-ops-chart:
         targetPort: http
         protocol: TCP
         name: http
-  httpRoute:
+
+  home-ops-route-chart:
     enabled: true
-    hostnames:
-    - home.schober.dev
-    parentRefs:
-        - name: internal-gateway
-          namespace: istio-ingress-internal
-          sectionName: https
-    rules:
-      - backendRefs:
-          - name: homepage-home-ops-chart
-            port: 3000
+    host: home.schober.dev
+    backend:
+      port: 3000
 
   extraVolumes:
     - name: homepage-config
@@ -98,3 +92,4 @@ home-ops-chart:
           remoteRef:
             key: homepage-mealie-api-token
       injectAsEnv: false
+

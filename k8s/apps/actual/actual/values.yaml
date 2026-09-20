@@ -1,4 +1,4 @@
-home-ops-chart:
+home-ops-app-chart:
   image:
     repository: ghcr.io/actualbudget/actual
     tag: 25.3.1
@@ -39,7 +39,7 @@ home-ops-chart:
         - name: ACTUAL_OPENID_CLIENT_SECRET
           valueFrom:
             secretKeyRef:
-              name: actual-home-ops-chart-secrets
+              name: actual-secrets
               key: actual-oidc-client-secret
       volumeMounts:
         - name: config-template
@@ -66,18 +66,11 @@ home-ops-chart:
         protocol: TCP
         name: http
 
-  httpRoute:
+  home-ops-route-chart:
     enabled: true
-    hostnames:
-      - actual.schober.dev
-    parentRefs:
-      - name: internal-gateway
-        namespace: istio-ingress-internal
-        sectionName: https
-    rules:
-      - backendRefs:
-          - name: actual-home-ops-chart
-            port: 5006
+    host: actual.schober.dev
+    backend:
+      port: 5006
 
   persistence:
     data:
@@ -103,3 +96,4 @@ pvc:
   name: actual-data
   storageClass: longhorn
   size: 2Gi
+

@@ -1,4 +1,4 @@
-home-ops-chart:
+home-ops-app-chart:
   image:
     repository: ghcr.io/corentinth/it-tools
     tag: "2024.10.22-7ca5933"
@@ -30,15 +30,7 @@ home-ops-chart:
         protocol: TCP
         name: http
 
-  httpRoute:
+  home-ops-route-chart:
     enabled: true
-    hostnames:
-      - it-tools.schober.dev
-    parentRefs:
-      - name: internal-gateway
-        namespace: istio-ingress-internal
-        sectionName: https
-    rules:
-      - backendRefs:
-          - name: it-tools-home-ops-chart
-            port: 80
+    host: it-tools.schober.dev
+

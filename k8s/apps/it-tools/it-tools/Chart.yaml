@@ -4,6 +4,6 @@ description: "IT Tools deployment for homelab"
 type: application
 version: 0.1.0
 dependencies:
-  - name: home-ops-chart
-    version: 0.2.0
-    repository: oci://zot.schober.dev/helm
+  - name: home-ops-app-chart
+    version: 0.3.1
+    repository: oci://zot.schober.dev/charts

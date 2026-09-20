@@ -1,4 +1,4 @@
-home-ops-chart:
+home-ops-app-chart:
   image:
     repository: louislam/uptime-kuma
     tag: "1"
@@ -33,18 +33,11 @@ home-ops-chart:
         protocol: TCP
         name: http
 
-  httpRoute:
+  home-ops-route-chart:
     enabled: true
-    hostnames:
-      - uptime.schober.dev
-    parentRefs:
-      - name: internal-gateway
-        namespace: istio-ingress-internal
-        sectionName: https
-    rules:
-      - backendRefs:
-          - name: uptime-kuma-home-ops-chart
-            port: 3001
+    host: uptime.schober.dev
+    backend:
+      port: 3001
 
   persistence:
     data:
@@ -57,3 +50,4 @@ pvc:
   name: uptime-kuma-data
   storageClass: longhorn
   size: 2Gi
+
