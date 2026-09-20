@@ -11,6 +11,9 @@ spec:
     - group: gateway.networking.k8s.io
       kind: HTTPRoute
       namespace: valkey
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: adguard
     - group: gateway.kgateway.dev
       kind: GatewayExtension
       namespace: media
@@ -20,7 +23,11 @@ spec:
     - group: gateway.kgateway.dev
       kind: GatewayExtension
       namespace: n8n
+    - group: gateway.kgateway.dev
+      kind: GatewayExtension
+      namespace: adguard
   to:
     - group: ""
       kind: Service
       name: ak-outpost-proxy
+
