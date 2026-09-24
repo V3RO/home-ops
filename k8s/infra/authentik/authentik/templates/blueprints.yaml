@@ -201,12 +201,19 @@ data:
             !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
           client_type: confidential
           client_id: {{ .provider.clientId }}
+          {{- with .provider.clientSecretEnv }}
           client_secret: !Env {{ .provider.clientSecretEnv }}
+          {{- end }}
+          {{- with .provider.redirectUris }}
           redirect_uris:
-            {{- range .provider.redirectUris }}
+            {{- range . }}
             - url: {{ .url }}
               matching_mode: {{ .matchingMode }}
             {{- end }}
+          {{- end }}
+          {{- if (default false .provider.includeClaimsInIdToken) }}
+          include_claims_in_id_token: true
+          {{- end }}
           {{- $signingKeyName := default "authentik Internal JWT Certificate" .provider.signingKeyName }}
           signing_key:
             !Find [authentik_crypto.certificatekeypair, [name, {{ $signingKeyName | quote }}]]

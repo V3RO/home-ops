@@ -105,6 +105,11 @@ spec:
               secretKeyRef:
                 name: authentik-secret
                 key: fluxClientSecret
+          - name: AUTHENTIK_NETBIRD_CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: authentik-secret
+                key: netbirdClientSecret
           - name: AUTHENTIK_USER_PASSWORD_V3RO
             valueFrom:
               secretKeyRef:
@@ -147,6 +152,7 @@ spec:
           - blueprint-immich
           - blueprint-kiali
           - blueprint-flux
+          - blueprint-netbird
           - blueprint-valkey-admin
           - blueprint-proxy-outpost
           - blueprint-users
@@ -453,6 +459,20 @@ spec:
               metaLaunchUrl: https://flux.schober.dev
               icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/flux-cd.svg
             access: admin
+          - name: netbird
+            provider:
+              kind: oauth2
+              name: NetBird
+              clientId: netbird
+              clientSecretEnv: AUTHENTIK_NETBIRD_CLIENT_SECRET
+              includeGroups: true
+              includeClaimsInIdToken: true
+            application:
+              name: NetBird
+              slug: netbird
+              metaLaunchUrl: https://netbird.schober.dev
+              icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/netbird.svg
+            access: user
 
     postgres:
       imageName: ghcr.io/cloudnative-pg/postgresql:18.1
@@ -480,6 +500,7 @@ spec:
         immichClientSecret: authentik-immich-client-secret
         kialiClientSecret: authentik-kiali-client-secret
         fluxClientSecret: authentik-flux-client-secret
+        netbirdClientSecret: authentik-netbird-client-secret
         userPasswords:
           - username: V3RO
             bitwardenItem: authentik-user-v3ro-password
