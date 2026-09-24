@@ -201,7 +201,7 @@ data:
             !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
           client_type: confidential
           client_id: {{ .provider.clientId }}
-          {{- with .provider.clientSecretEnv }}
+          {{- if .provider.clientSecretEnv }}
           client_secret: !Env {{ .provider.clientSecretEnv }}
           {{- end }}
           {{- with .provider.redirectUris }}
