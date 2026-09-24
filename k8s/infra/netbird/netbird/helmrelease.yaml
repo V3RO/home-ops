@@ -81,6 +81,7 @@ spec:
       persistence:
         enabled: true
         size: 5Gi
+        storageClass: longhorn
       serviceAccount:
         automountServiceAccountToken: false
       resources:
