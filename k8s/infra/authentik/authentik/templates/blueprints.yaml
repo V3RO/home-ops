@@ -1,4 +1,5 @@
 {{- range .Values.authentik.blueprints.data }}
+{{- $entry := . }}
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -201,8 +202,8 @@ data:
             !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
           client_type: confidential
           client_id: {{ .provider.clientId }}
-          {{- if .provider.clientSecretEnv }}
-          client_secret: !Env {{ .provider.clientSecretEnv }}
+          {{- if $entry.provider.clientSecretEnv }}
+          client_secret: !Env {{ $entry.provider.clientSecretEnv }}
           {{- end }}
           {{- with .provider.redirectUris }}
           redirect_uris:
