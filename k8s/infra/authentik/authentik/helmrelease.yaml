@@ -465,7 +465,6 @@ spec:
               name: NetBird
               clientId: netbird
               clientSecretEnv: AUTHENTIK_NETBIRD_CLIENT_SECRET
-              includeGroups: true
               includeClaimsInIdToken: true
             application:
               name: NetBird
