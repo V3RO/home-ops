@@ -1,0 +1,12 @@
+apiVersion: v2
+name: netbird
+description: NetBird self-hosted combined server and dashboard
+type: application
+version: 0.1.0
+dependencies:
+  - name: home-ops-cnpg-cluster-chart
+    version: 0.1.0
+    repository: oci://zot.schober.dev/charts
+  - name: netbird
+    version: 1.0.8
+    repository: oci://ghcr.io/helmforgedev/helm

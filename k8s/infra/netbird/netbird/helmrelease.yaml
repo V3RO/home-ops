@@ -1,0 +1,93 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: netbird
+  namespace: flux-system
+spec:
+  suspend: true
+  interval: 30m
+  timeout: 10m
+  chart:
+    spec:
+      chart: ./k8s/infra/netbird/netbird
+      sourceRef:
+        kind: GitRepository
+        name: flux-system
+        namespace: flux-system
+      reconcileStrategy: Revision
+  releaseName: netbird
+  targetNamespace: netbird
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+  values:
+    home-ops-cnpg-cluster-chart:
+      nameOverride: netbird
+      cluster:
+        name: netbird-postgres
+        instances: 3
+        imageName: ghcr.io/cloudnative-pg/postgresql:18.1
+        storage:
+          size: 10Gi
+          class: openebs-hostpath
+        database: netbird
+        owner: netbird
+      backup:
+        enabled: true
+        schedule: "0 30 3 * * *"
+        retentionPolicy: 14d
+        objectStore:
+          name: netbird-versitygw-store
+          destinationPath: s3://cnpg-backups/netbird/
+          endpointURL: http://versitygw.versitygw.svc.cluster.local:7070
+          region: homelab
+          compression: gzip
+        credentials:
+          secretName: netbird-backup-credentials
+          accessKeyIdRef: netbird-backup-id
+          secretAccessKeyRef: netbird-backup-secret
+      credentials:
+        remoteKey: netbird-database-password
+
+    netbird:
+      server:
+        replicaCount: 1
+        publicUrl: https://netbird.schober.dev
+        auth:
+          issuer: https://netbird.schober.dev/oauth2
+          localAuthDisabled: false
+        service:
+          type: ClusterIP
+      dashboard:
+        enabled: true
+        replicaCount: 1
+      database:
+        mode: external
+        external:
+          engine: postgres
+          host: netbird-postgres-rw.netbird.svc.cluster.local
+          port: 5432
+          name: netbird
+          username: netbird
+          existingSecret: cnpg-netbird-credentials
+          existingSecretPasswordKey: password
+          sslMode: disable
+      postgresql:
+        enabled: false
+      persistence:
+        enabled: true
+        size: 5Gi
+      serviceAccount:
+        automountServiceAccountToken: false
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          memory: 1Gi
+      networkPolicy:
+        enabled: false

@@ -81,6 +81,7 @@ spec:
       - name: adguard
       - name: actual
       - name: immich
+      - name: netbird
       - name: media
         labels:
           istio.io/dataplane-mode: none

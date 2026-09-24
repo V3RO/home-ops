@@ -22,6 +22,7 @@ resources:
   - ./kube-system
   - ./longhorn-system
   - ./monitoring
+  - ./netbird
   - ./node-feature-discovery
   - ./openebs
   - ./reloader
