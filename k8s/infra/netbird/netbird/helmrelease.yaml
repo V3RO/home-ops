@@ -4,7 +4,6 @@ metadata:
   name: netbird
   namespace: flux-system
 spec:
-  suspend: true
   interval: 30m
   timeout: 10m
   chart:
@@ -84,6 +83,59 @@ spec:
         storageClass: longhorn
       serviceAccount:
         automountServiceAccountToken: false
+      gatewayAPI:
+        enabled: true
+        httpRoutes:
+          - name: netbird
+            parentRefs:
+              - name: internal-gateway
+                namespace: istio-ingress-internal
+                sectionName: https
+            hostnames:
+              - netbird.schober.dev
+            rules:
+              # Preserve h2c for gRPC methods handled by the combined server.
+              - matches:
+                  - path:
+                      type: PathPrefix
+                      value: /signalexchange.SignalExchange/
+                  - path:
+                      type: PathPrefix
+                      value: /management.ManagementService/
+                  - path:
+                      type: PathPrefix
+                      value: /management.ProxyService/
+                backendRefs:
+                  - name: netbird-server-h2c
+                    port: 80
+              # Control API, embedded IdP, relay, and websocket endpoints.
+              - matches:
+                  - path:
+                      type: PathPrefix
+                      value: /api
+                  - path:
+                      type: PathPrefix
+                      value: /oauth2
+                  - path:
+                      type: PathPrefix
+                      value: /relay
+                  - path:
+                      type: PathPrefix
+                      value: /ws-proxy/management
+                  - path:
+                      type: PathPrefix
+                      value: /ws-proxy/signal
+                backendRefs:
+                  - name: netbird-server
+                    port: 80
+              # Dashboard UI and authentication callbacks.
+              - matches:
+                  - path:
+                      type: PathPrefix
+                      value: /
+                backendRefs:
+                  - name: netbird-dashboard
+                    port: 80
       resources:
         requests:
           cpu: 100m

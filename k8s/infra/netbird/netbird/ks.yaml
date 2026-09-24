@@ -15,6 +15,9 @@ spec:
   prune: true
   dependsOn:
     - name: namespaces
+    - name: gateway-api
+    - name: kgateway
+    - name: gateway
     - name: cnpg-operator
     - name: barman-cloud
     - name: external-secrets-config
