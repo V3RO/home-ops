@@ -466,8 +466,10 @@ spec:
               clientId: netbird
               clientSecretEnv: AUTHENTIK_NETBIRD_CLIENT_SECRET
               redirectUris:
-                - url: ^https://netbird\.schober\.dev/oauth2/callback/[A-Za-z0-9_-]+$
-                  matchingMode: regex
+                - url: https://netbird.schober.dev/oauth2/callback
+                  matchingMode: strict
+                - url: https://netbird.schober.dev/oauth2/logout/callback
+                  matchingMode: strict
               includeClaimsInIdToken: true
             application:
               name: NetBird
