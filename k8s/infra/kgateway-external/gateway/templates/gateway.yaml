@@ -3,6 +3,11 @@ kind: Gateway
 metadata:
   name: kgateway-external
   namespace: {{ .Release.Namespace }}
+  annotations:
+    # external-dns reads this in preference to the Gateway's status address.
+    # Without it the published target would be the Cilium VIP (10.1.40.91),
+    # which is RFC1918 and must never reach the public zone.
+    external-dns.alpha.kubernetes.io/target: 80.108.88.161
 spec:
   gatewayClassName: kgateway
   # Note: Gateway.spec.infrastructure.annotations is NOT propagated onto the
