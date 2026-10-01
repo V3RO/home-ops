@@ -136,12 +136,12 @@ spec:
                   - path:
                       type: PathPrefix
                       value: /relay
+                  # Whole ws-proxy prefix rather than only the management and
+                  # signal subpaths, so a new proxied component cannot fall
+                  # through to the dashboard route.
                   - path:
                       type: PathPrefix
-                      value: /ws-proxy/management
-                  - path:
-                      type: PathPrefix
-                      value: /ws-proxy/signal
+                      value: /ws-proxy/
                 backendRefs:
                   - name: netbird-server
                     port: 80
