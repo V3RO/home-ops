@@ -1,0 +1,17 @@
+apiVersion: gateway.kgateway.dev/v1alpha1
+kind: GatewayParameters
+metadata:
+  name: kgateway-external
+  namespace: {{ .Release.Namespace }}
+spec:
+  kube:
+    service:
+      # kgateway does not propagate Gateway.spec.infrastructure.annotations onto
+      # the Service it generates, so the Cilium VIP is claimed here instead.
+      # extraAnnotations only applies where the Gateway itself does not set the
+      # same key (Gateway values take precedence).
+      extraAnnotations:
+        io.cilium/lb-ipam-ips: 10.1.40.91
+      # Local preserves the real client source IP, which the plan requires for
+      # proxy access logs and any future CrowdSec decisions.
+      externalTrafficPolicy: Local

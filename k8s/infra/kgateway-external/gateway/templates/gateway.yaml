@@ -3,12 +3,17 @@ kind: Gateway
 metadata:
   name: kgateway-external
   namespace: {{ .Release.Namespace }}
-  annotations:
-    # Dedicated public VIP from the lb-pool-01 Cilium pool. Same mechanism the
-    # NetBird STUN service uses for its 10.1.40.90 address.
-    io.cilium/lb-ipam-ips: 10.1.40.91
 spec:
   gatewayClassName: kgateway
+  # Note: Gateway.spec.infrastructure.annotations is NOT propagated onto the
+  # generated Service by kgateway v2.4.4, so the Cilium VIP (10.1.40.91) and the
+  # source-IP-preserving traffic policy are configured on the referenced
+  # GatewayParameters instead.
+  infrastructure:
+    parametersRef:
+      group: gateway.kgateway.dev
+      kind: GatewayParameters
+      name: kgateway-external
   listeners:
     # Only the NetBird hostname is served. Routes are additionally restricted to
     # the netbird namespace so no other application can attach here.
