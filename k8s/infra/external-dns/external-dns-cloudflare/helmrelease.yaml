@@ -1,0 +1,58 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: external-dns-cloudflare
+  namespace: flux-system
+spec:
+  interval: 5m
+  timeout: 5m
+  chart:
+    spec:
+      chart: ./k8s/infra/external-dns/external-dns-cloudflare
+      sourceRef:
+        kind: GitRepository
+        name: flux-system
+        namespace: flux-system
+      reconcileStrategy: Revision
+  releaseName: external-dns-cloudflare
+  targetNamespace: external-dns
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+  values:
+    external-dns:
+      provider:
+        name: cloudflare
+      env:
+        - name: CF_API_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: external-dns-cloudflare-secret
+              key: api-token
+      sources:
+        - gateway-httproute
+      # Only the public Gateway lives here; the internal-gateway is handled by
+      # the separate external-dns-unifi instance and both must not fight over
+      # the same hostnames.
+      gatewayNamespace: kgateway-external
+      domainFilters:
+        - schober.dev
+      policy: sync
+      txtOwnerId: external-dns-cloudflare
+      txtPrefix: k8s-cloudflare.
+      extraArgs:
+        # NOTE: the public target is deliberately NOT set yet, so this instance
+        # currently publishes nothing. It must not run without an explicit
+        # target: the Gateway's status address is the Cilium VIP 10.1.40.91,
+        # which is RFC1918, and external-dns would publish that private address
+        # into the public zone.
+        #
+        # To enable publishing, add the static public WAN IP that TCP 443 is
+        # forwarded to:
+        #   - --default-targets=<WAN_IP>
+        # Only records created with that target are touched (txtOwnerId +
+        # txtPrefix keep ownership scoped to this instance).
