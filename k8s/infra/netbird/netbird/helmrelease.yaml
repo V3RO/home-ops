@@ -72,8 +72,10 @@ spec:
           # server.authSecret as a plain string in this public repository).
           existingSecret: netbird-config
         auth:
+          # Authentik is the identity provider; the embedded IdP is only used
+          # as the OIDC endpoint the dashboard authenticates against.
           issuer: https://netbird.schober.dev/oauth2
-          localAuthDisabled: false
+          localAuthDisabled: true
         service:
           type: ClusterIP
       dashboard:
