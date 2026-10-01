@@ -45,14 +45,10 @@ spec:
       txtOwnerId: external-dns-cloudflare
       txtPrefix: k8s-cloudflare.
       extraArgs:
-        # NOTE: the public target is deliberately NOT set yet, so this instance
-        # currently publishes nothing. It must not run without an explicit
-        # target: the Gateway's status address is the Cilium VIP 10.1.40.91,
-        # which is RFC1918, and external-dns would publish that private address
-        # into the public zone.
-        #
-        # To enable publishing, add the static public WAN IP that TCP 443 is
-        # forwarded to:
-        #   - --default-targets=<WAN_IP>
-        # Only records created with that target are touched (txtOwnerId +
-        # txtPrefix keep ownership scoped to this instance).
+        # The Gateway's status address is the Cilium VIP 10.1.40.91, which is
+        # RFC1918 and must never reach the public zone. Publish the static WAN
+        # IP that TCP 443 is forwarded to instead.
+        - --default-targets=80.108.88.161
+        # Hard guard: even if a Gateway or Service in the watched namespace
+        # reports a private address, refuse to publish it.
+        - --exclude-target-net=10.0.0.0/8
