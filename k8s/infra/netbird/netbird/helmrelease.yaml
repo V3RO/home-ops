@@ -32,6 +32,10 @@ spec:
       targetSecretName: netbird-config
       keys:
         authSecret: netbird-auth-secret
+        # Data-store encryption key: encrypts user records at rest and must
+        # stay stable across restarts, so it comes from Bitwarden rather than
+        # being chart-generated.
+        encryptionKey: netbird-encryption-key
 
     home-ops-cnpg-cluster-chart:
       nameOverride: netbird
