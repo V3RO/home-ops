@@ -24,6 +24,15 @@ spec:
       retries: 3
       remediateLastFailure: true
   values:
+    externalSecret:
+      refreshInterval: 1h
+      secretStoreRef:
+        name: bitwarden-app-secrets
+        kind: ClusterSecretStore
+      targetSecretName: netbird-config
+      keys:
+        authSecret: netbird-auth-secret
+
     home-ops-cnpg-cluster-chart:
       nameOverride: netbird
       cluster:
@@ -56,6 +65,12 @@ spec:
       server:
         replicaCount: 1
         publicUrl: https://netbird.schober.dev
+        config:
+          # Full config.yaml is delivered by the ExternalSecret in
+          # templates/config-external-secret.yaml, so the chart does not render
+          # its own config Secret from values (which would require
+          # server.authSecret as a plain string in this public repository).
+          existingSecret: netbird-config
         auth:
           issuer: https://netbird.schober.dev/oauth2
           localAuthDisabled: false
