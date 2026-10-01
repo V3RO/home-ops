@@ -36,6 +36,10 @@ spec:
         # stay stable across restarts, so it comes from Bitwarden rather than
         # being chart-generated.
         encryptionKey: netbird-encryption-key
+        # Break-glass local administrator, seeded by the embedded IdP on first
+        # account initialisation. Needs localAuthDisabled=false to sign in.
+        ownerEmail: netbird-owner-email
+        ownerPassword: netbird-owner-password
 
     home-ops-cnpg-cluster-chart:
       nameOverride: netbird
@@ -79,7 +83,9 @@ spec:
           # Authentik is the identity provider; the embedded IdP is only used
           # as the OIDC endpoint the dashboard authenticates against.
           issuer: https://netbird.schober.dev/oauth2
-          localAuthDisabled: true
+          # false keeps the break-glass local owner reachable. Set true to
+          # force all logins through the external IdP.
+          localAuthDisabled: false
         service:
           type: ClusterIP
       dashboard:
