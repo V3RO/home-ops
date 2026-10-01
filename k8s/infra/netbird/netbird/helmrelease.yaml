@@ -105,8 +105,11 @@ spec:
         httpRoutes:
           - name: netbird
             parentRefs:
-              - name: internal-gateway
-                namespace: istio-ingress-internal
+              # Dedicated public Gateway: its own Cilium VIP (10.1.40.91) and a
+              # leaf certificate, so NetBird no longer shares internal-gateway's
+              # wildcard certificate or address.
+              - name: kgateway-external
+                namespace: kgateway-external
                 sectionName: https
             hostnames:
               - netbird.schober.dev
