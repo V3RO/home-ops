@@ -102,6 +102,14 @@ spec:
         enabled: true
         size: 5Gi
         storageClass: longhorn
+      # The data PVC is ReadWriteOnce and the chart only uses the Recreate
+      # strategy for its sqlite store, so with external Postgres a plain
+      # rollout deadlocks: the new pod waits for a volume the old pod still
+      # holds. Reloader tears the old pod down first, which also means config
+      # changes arriving from Bitwarden (authSecret, encryptionKey) actually
+      # take effect instead of sitting in the Secret unread.
+      podAnnotations:
+        reloader.stakater.com/auto: "true"
       serviceAccount:
         automountServiceAccountToken: false
       gatewayAPI:
