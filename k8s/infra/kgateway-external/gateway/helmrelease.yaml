@@ -1,0 +1,26 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kgateway-external
+  namespace: flux-system
+spec:
+  interval: 5m
+  timeout: 5m
+  chart:
+    spec:
+      chart: ./k8s/infra/kgateway-external/gateway
+      sourceRef:
+        kind: GitRepository
+        name: flux-system
+        namespace: flux-system
+      reconcileStrategy: Revision
+  releaseName: kgateway-external
+  targetNamespace: kgateway-external
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+  values:

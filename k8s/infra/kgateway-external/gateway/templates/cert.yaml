@@ -1,0 +1,16 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: netbird-schober-dev-tls
+  namespace: {{ .Release.Namespace }}
+spec:
+  issuerRef:
+    name: cloudflare-letsencrypt
+    kind: ClusterIssuer
+    group: cert-manager.io
+  # Leaf certificate for the single public NetBird hostname. The wildcard
+  # schober-dev-tls certificate used by internal-gateway is deliberately not
+  # reused here.
+  dnsNames:
+    - "netbird.schober.dev"
+  secretName: netbird-schober-dev-tls

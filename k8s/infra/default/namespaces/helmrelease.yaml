@@ -41,6 +41,9 @@ spec:
       - name: kgateway-system
         labels:
           istio.io/dataplane-mode: none
+      - name: kgateway-external
+        labels:
+          istio.io/dataplane-mode: none
       - name: argocd
         labels:
           istio.io/dataplane-mode: none

@@ -1,0 +1,5 @@
+apiVersion: v2
+name: kgateway-external
+description: Public kgateway Gateway for externally exposed services
+type: application
+version: 1.0.0

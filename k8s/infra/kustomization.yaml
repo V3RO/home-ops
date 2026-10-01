@@ -18,6 +18,7 @@ resources:
   - ./intel
   - ./istio-ingress-internal
   - ./istio-system
+  - ./kgateway-external
   - ./kgateway-system
   - ./kube-system
   - ./longhorn-system
