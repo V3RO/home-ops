@@ -167,15 +167,13 @@ data:
             {{- end }}
       {{- end }}
       {{- else if eq .provider.kind "oauth2" }}
-      # NOTE ON `ak_groups` (do not "fix" this before upgrading to authentik 2026.2):
-      # `User.ak_groups` is deprecated as of 2026.2 in favour of `User.groups`. On
-      # 2025.12.4 the opposite is true: `User` still declares `ak_groups`, and
-      # `User.groups` resolves to Django's contrib-auth group table, which is empty.
-      # Verified on the live instance: for V3RO `ak_groups` = [authentik Admins,
-      # homelab-admins, homelab-users] while `groups` = []. Swapping now would drop the
-      # groups claim and make Immich report role "user" instead of "admin".
-      # In 2026.2 the field is renamed to `groups` (ak_groups becomes a proxy property),
-      # so the swap belongs in the same change as the 2026.2 chart bump.
+      # `User.ak_groups` was deprecated in authentik 2026.2 in favour of `User.groups`,
+      # which is what 2026.2 renamed the field to. The swap below is deliberately tied to
+      # this chart bump: on 2025.12.4 `User.groups` resolved to Django's contrib-auth
+      # group table (which is empty), so doing this earlier would have silently dropped the
+      # groups claim and made Immich report role "user" instead of "admin".
+      # On 2025.12.4 V3RO had ak_groups [authentik Admins, homelab-admins,
+      # homelab-users] but groups [] - that is the regression this ordering avoids.
       {{- if (default false .provider.includeGroups) }}
       - model: authentik_providers_oauth2.scopemapping
         id: {{ .name }}-scope-groups
@@ -185,7 +183,7 @@ data:
           name: Groups
           scope_name: groups
           expression: |
-            return {"groups": [group.name for group in user.ak_groups.all()]}
+            return {"groups": [group.name for group in user.groups.all()]}
       {{- end }}
       {{- if (default false .provider.immichRoleClaim) }}
       - model: authentik_providers_oauth2.scopemapping
@@ -196,7 +194,7 @@ data:
           name: Immich role
           scope_name: immich_role
           expression: |
-            groups = [group.name for group in user.ak_groups.all()]
+            groups = [group.name for group in user.groups.all()]
             return {"immich_role": "admin" if "homelab-admins" in groups else "user"}
       {{- end }}
       - model: authentik_providers_oauth2.oauth2provider
