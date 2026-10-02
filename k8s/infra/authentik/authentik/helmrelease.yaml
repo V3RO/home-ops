@@ -515,8 +515,10 @@ spec:
     route:
       enabled: true
       hostname: auth.schober.dev
-      gatewayName: internal-gateway
-      gatewayNamespace: istio-ingress-internal
-      gatewaySectionName: https
+      # Public: the OIDC flow redirects the user's browser to this hostname, so
+      # it cannot sit behind the internal gateway.
+      gatewayName: kgateway-external
+      gatewayNamespace: kgateway-external
+      gatewaySectionName: authentik-https
       serviceName: authentik-server
       servicePort: 80

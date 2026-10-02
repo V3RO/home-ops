@@ -38,3 +38,22 @@ spec:
           - name: netbird-schober-dev-tls
             kind: Secret
             group: ""
+    # Authentik's login UI must be publicly reachable: the OIDC flow redirects
+    # the user's browser here directly, so it cannot live on the internal
+    # gateway. Scoped to the authentik namespace like the listener above.
+    - name: authentik-https
+      protocol: HTTPS
+      port: 443
+      hostname: "auth.schober.dev"
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              kubernetes.io/metadata.name: authentik
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: authentik-schober-dev-tls
+            kind: Secret
+            group: ""

@@ -1,0 +1,16 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: authentik-schober-dev-tls
+  namespace: {{ .Release.Namespace }}
+spec:
+  issuerRef:
+    name: cloudflare-letsencrypt
+    kind: ClusterIssuer
+    group: cert-manager.io
+  # Leaf certificate for Authentik's public login hostname. The wildcard
+  # schober-dev-tls certificate serving internal-gateway is not reused here, so
+  # each public listener carries only the name it actually serves.
+  dnsNames:
+    - "auth.schober.dev"
+  secretName: authentik-schober-dev-tls
