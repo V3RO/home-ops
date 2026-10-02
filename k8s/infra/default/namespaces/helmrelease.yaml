@@ -89,6 +89,17 @@ spec:
         labels:
           istio.io/dataplane-mode: none
           pod-security.kubernetes.io/enforce: privileged
+      - name: netbird-router
+        labels:
+          istio.io/dataplane-mode: none
+          # The NetBird routing-peer client needs NET_ADMIN/SYS_ADMIN/
+          # SYS_RESOURCE to create its WireGuard interface and route cluster
+          # VIP traffic, so it cannot run under the restricted profile. Keeping
+          # it in its own namespace avoids relaxing the netbird namespace,
+          # where the unprivileged server and dashboard live.
+          pod-security.kubernetes.io/enforce: privileged
+          pod-security.kubernetes.io/audit: privileged
+          pod-security.kubernetes.io/warn: privileged
       - name: it-tools
       - name: uptime-kuma
       - name: kiali

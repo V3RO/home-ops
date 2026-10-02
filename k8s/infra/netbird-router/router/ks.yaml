@@ -1,0 +1,25 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: netbird-router
+  namespace: flux-system
+spec:
+  interval: 10m
+  retryInterval: 1m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  path: ./k8s/infra/netbird-router/router
+  prune: true
+  dependsOn:
+    - name: namespaces
+    - name: external-secrets-config
+    # The router must be able to reach the control plane it enrolls against
+    - name: netbird
+  healthChecks:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: netbird-router
+      namespace: netbird-router

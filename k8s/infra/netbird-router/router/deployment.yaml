@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: netbird-router
+  namespace: netbird-router
+  labels:
+    app.kubernetes.io/name: netbird-router
+spec:
+  replicas: 1
+  # The client sets up a WireGuard interface and routes; take the old pod down
+  # before starting the new one so the two never fight over the same peer
+  # identity or interface.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: netbird-router
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: netbird-router
+    spec:
+      serviceAccountName: default
+      automountServiceAccountToken: false
+      containers:
+        - name: netbird
+          # The client, not the server. Self-hosted management URL is required
+          # or the client would try to enrol against NetBird Cloud.
+          image: netbirdio/netbird:0.77.0
+          env:
+            - name: NB_MANAGEMENT_URL
+              value: https://netbird.schober.dev
+            - name: NB_HOSTNAME
+              value: netbird-k8s-router
+            - name: NB_LOG_LEVEL
+              value: info
+            # Pods have no TUN device, so run WireGuard in userspace.
+            # https://docs.netbird.io/client/environment-variables#wire-guard-and-interface
+            - name: NB_WG_KERNEL_DISABLED
+              value: "true"
+            - name: NB_SETUP_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: netbird-router-setup-key
+                  key: NB_SETUP_KEY
+          securityContext:
+            # Required by the documented routing-peer deployment: NET_ADMIN for
+            # the WireGuard interface, SYS_RESOURCE for the eBPF/route
+            # plumbing, SYS_ADMIN for the userspace network namespace work.
+            # This is a privileged workload and is the reason it lives in its
+            # own Deployment rather than alongside the server.
+            capabilities:
+              add:
+                - NET_ADMIN
+                - SYS_RESOURCE
+                - SYS_ADMIN
+            allowPrivilegeEscalation: true
+          livenessProbe:
+            exec:
+              command: ["netbird", "status", "--check", "live"]
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command: ["netbird", "status", "--check", "ready"]
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          startupProbe:
+            exec:
+              command: ["netbird", "status", "--check", "startup"]
+            periodSeconds: 5
+            timeoutSeconds: 10
+            failureThreshold: 30
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 512Mi

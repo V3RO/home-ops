@@ -24,6 +24,7 @@ resources:
   - ./longhorn-system
   - ./monitoring
   - ./netbird
+  - ./netbird-router
   - ./node-feature-discovery
   - ./openebs
   - ./reloader
