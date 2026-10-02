@@ -17,8 +17,10 @@
 #     not wanted (recovery then has to be done by an admin).
 #   * authentik's own blueprint does not set `not_configured_action`, so it will not
 #     reset this value on upgrade.
-#   * The LDAP provider (Jellyfin) is unaffected: Jellyfin binds with the
-#     `jellyfin-ldap` service account via `LdapBindUser`, not by running this flow.
+#   * LDAP providers do NOT use this flow: every LDAP bind (including the `jellyfin-ldap`
+#     service account) executes the provider's bind flow, so they use the dedicated
+#     MFA-free `ldap-authentication-flow` (see blueprints.yaml). Sharing this flow breaks
+#     LDAP binds with "unsupported challenge type ak-stage-authenticator-totp".
 apiVersion: v1
 kind: ConfigMap
 metadata:

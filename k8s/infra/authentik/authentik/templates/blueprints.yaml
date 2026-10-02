@@ -62,6 +62,40 @@ data:
           icon: {{ . }}
           {{- end }}
       {{- else if eq .provider.kind "ldap" }}
+      # Dedicated bind flow without the MFA validation stage: LDAP binds (e.g. the Jellyfin
+      # service account) cannot answer an interactive TOTP challenge, and the shared
+      # default-authentication-flow now enforces MFA (see mfa.yaml).
+      - model: authentik_flows.flow
+        id: {{ .name }}-ldap-bind-flow
+        identifiers:
+          slug: ldap-authentication-flow
+        attrs:
+          name: ldap-authentication-flow
+          title: LDAP authentication
+          slug: ldap-authentication-flow
+          designation: authentication
+          authentication: none
+      - model: authentik_flows.flowstagebinding
+        id: {{ .name }}-ldap-bind-identification
+        identifiers:
+          target: !KeyOf {{ .name }}-ldap-bind-flow
+          order: 10
+        attrs:
+          stage: !Find [authentik_stages_identification.identificationstage, [name, default-authentication-identification]]
+      - model: authentik_flows.flowstagebinding
+        id: {{ .name }}-ldap-bind-password
+        identifiers:
+          target: !KeyOf {{ .name }}-ldap-bind-flow
+          order: 20
+        attrs:
+          stage: !Find [authentik_stages_password.passwordstage, [name, default-authentication-password]]
+      - model: authentik_flows.flowstagebinding
+        id: {{ .name }}-ldap-bind-login
+        identifiers:
+          target: !KeyOf {{ .name }}-ldap-bind-flow
+          order: 100
+        attrs:
+          stage: !Find [authentik_stages_user_login.userloginstage, [name, default-authentication-login]]
       - model: authentik_providers_ldap.ldapprovider
         id: {{ .name }}-provider
         identifiers:
@@ -70,7 +104,7 @@ data:
           name: {{ .provider.name }}
           base_dn: {{ .provider.baseDn }}
           authorization_flow:
-            !Find [authentik_flows.flow, [slug, {{ default "default-authentication-flow" .provider.bindFlowSlug | quote }}]]
+            !Find [authentik_flows.flow, [slug, {{ default "ldap-authentication-flow" .provider.bindFlowSlug | quote }}]]
           invalidation_flow:
             !Find [authentik_flows.flow, [slug, {{ default "default-invalidation-flow" .provider.unbindFlowSlug | quote }}]]
           {{- with .provider.bindMode }}
