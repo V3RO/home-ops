@@ -156,7 +156,8 @@ spec:
           - blueprint-valkey-admin
           - blueprint-proxy-outpost
           - blueprint-users
-          - blueprint-enrollment
+          - blueprint-mfa
+          - blueprint-disable-registration
 
         users:
           - username: V3RO

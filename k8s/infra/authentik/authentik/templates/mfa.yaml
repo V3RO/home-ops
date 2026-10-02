@@ -1,0 +1,46 @@
+---
+# Makes MFA a hard requirement for every interactive login.
+#
+# authentik's shipped default authentication flow already binds an Authenticator
+# Validate stage at order 30, but it carries no attributes, so authentik's default
+# `not_configured_action: skip` applies: a user who has no authenticator device is
+# let through on password alone. This blueprint reconciles that stage to
+# `not_configured_action: configure`, which means a user without a compatible device
+# is sent to the TOTP setup stage and only the `default-authentication-login` stage
+# (order 100) can create a session. Password-only login is therefore impossible.
+#
+# Notes:
+#   * Blueprint updates are partial, so `device_classes` and `last_auth_threshold`
+#     keep their existing values unless set here.
+#   * `not_configured_action: deny` is the stricter variant: it refuses the login
+#     instead of letting the user self-enrol. Switch it if enrol-on-first-login is
+#     not wanted (recovery then has to be done by an admin).
+#   * authentik's own blueprint does not set `not_configured_action`, so it will not
+#     reset this value on upgrade.
+#   * The LDAP provider (Jellyfin) is unaffected: Jellyfin binds with the
+#     `jellyfin-ldap` service account via `LdapBindUser`, not by running this flow.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: blueprint-mfa
+  namespace: {{ .Release.Namespace }}
+data:
+  mfa.yaml: |
+    # yaml-language-server: $schema=https://goauthentik.io/blueprints/schema.json
+    version: 1
+    metadata:
+      name: Require MFA
+      labels:
+        blueprints.goauthentik.io/description: "Requires an authenticator device for every user of the default authentication flow"
+    entries:
+      - model: authentik_stages_authenticator_validate.authenticatorvalidatestage
+        id: mfa-validation
+        state: present
+        identifiers:
+          # Stage names are unique in this installation; verified that only one
+          # authenticator validate stage exists.
+          name: default-authentication-mfa-validation
+        attrs:
+          not_configured_action: configure
+          configuration_stages:
+            - !Find [authentik_stages_authenticator_totp.authenticatortotpstage, [name, default-authenticator-totp-setup]]

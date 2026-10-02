@@ -1,0 +1,76 @@
+---
+# Self-registration must never be possible on a publicly exposed Authentik.
+#
+# Two anonymous-reachable enrollment flows exist in this installation:
+#   * `self-service-enrollment`        - created by this chart (username/email/password
+#                                        prompt -> always_create user write -> auto login).
+#                                        It answered HTTP 200 to anonymous requests at
+#                                        /if/flow/self-service-enrollment/.
+#   * `default-source-enrollment`      - authentik's own, shipped with `authentication: none`
+#                                        (it needs a source-specific policy to become usable,
+#                                        but it must not exist as a latent signup path).
+#
+# `state: absent` makes the reconciliation delete these objects declaratively.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: blueprint-disable-registration
+  namespace: {{ .Release.Namespace }}
+data:
+  disable-registration.yaml: |
+    # yaml-language-server: $schema=https://goauthentik.io/blueprints/schema.json
+    version: 1
+    metadata:
+      name: Disable Self-Registration
+      labels:
+        blueprints.goauthentik.io/description: "Removes all self-service enrollment flows so anonymous visitors cannot create accounts"
+    entries:
+      # --- custom self-service enrollment flow, previously created by this chart ---
+      - model: authentik_flows.flow
+        id: self-service-enrollment-flow
+        state: absent
+        identifiers:
+          slug: self-service-enrollment
+
+      # Stage bindings reference the flow, so remove them before the flow itself.
+      # (Deleting the flow would cascade, but explicit removal keeps the blueprint
+      # idempotent and readable.)
+      - model: authentik_flows.flowstagebinding
+        state: absent
+        identifiers:
+          target: !KeyOf self-service-enrollment-flow
+          stage: !Find [authentik_stages_prompt.promptstage, [name, enrollment-prompt]]
+          order: 10
+      - model: authentik_flows.flowstagebinding
+        state: absent
+        identifiers:
+          target: !KeyOf self-service-enrollment-flow
+          stage: !Find [authentik_stages_user_write.userwritestage, [name, enrollment-user-write]]
+          order: 20
+      - model: authentik_flows.flowstagebinding
+        state: absent
+        identifiers:
+          target: !KeyOf self-service-enrollment-flow
+          stage: !Find [authentik_stages_user_login.userloginstage, [name, enrollment-user-login]]
+          order: 30
+
+      # Stages owned exclusively by that flow. Removing them means re-enabling
+      # self-registration requires a deliberate change rather than a leftover object.
+      - model: authentik_stages_prompt.promptstage
+        state: absent
+        identifiers:
+          name: enrollment-prompt
+      - model: authentik_stages_user_write.userwritestage
+        state: absent
+        identifiers:
+          name: enrollment-user-write
+      - model: authentik_stages_user_login.userloginstage
+        state: absent
+        identifiers:
+          name: enrollment-user-login
+
+      # --- authentik's built-in source enrollment flow (anonymous reachable) ---
+      - model: authentik_flows.flow
+        state: absent
+        identifiers:
+          slug: default-source-enrollment
