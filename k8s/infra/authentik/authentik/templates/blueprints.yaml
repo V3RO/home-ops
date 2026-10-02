@@ -167,6 +167,15 @@ data:
             {{- end }}
       {{- end }}
       {{- else if eq .provider.kind "oauth2" }}
+      # NOTE ON `ak_groups` (do not "fix" this before upgrading to authentik 2026.2):
+      # `User.ak_groups` is deprecated as of 2026.2 in favour of `User.groups`. On
+      # 2025.12.4 the opposite is true: `User` still declares `ak_groups`, and
+      # `User.groups` resolves to Django's contrib-auth group table, which is empty.
+      # Verified on the live instance: for V3RO `ak_groups` = [authentik Admins,
+      # homelab-admins, homelab-users] while `groups` = []. Swapping now would drop the
+      # groups claim and make Immich report role "user" instead of "admin".
+      # In 2026.2 the field is renamed to `groups` (ak_groups becomes a proxy property),
+      # so the swap belongs in the same change as the 2026.2 chart bump.
       {{- if (default false .provider.includeGroups) }}
       - model: authentik_providers_oauth2.scopemapping
         id: {{ .name }}-scope-groups
