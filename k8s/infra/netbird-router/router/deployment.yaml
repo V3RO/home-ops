@@ -81,3 +81,13 @@ spec:
               memory: 128Mi
             limits:
               memory: 512Mi
+          volumeMounts:
+            # Without persistent state the client generates a fresh WireGuard
+            # key on every container start and therefore needs to enrol again
+            # each time. That makes a one-off setup key unusable and is why the
+            # peer identity must survive restarts.
+            - name: state
+              mountPath: /var/lib/netbird
+      volumes:
+        - name: state
+          emptyDir: {}
