@@ -1,0 +1,15 @@
+apiVersion: gateway.kgateway.dev/v1alpha1
+kind: HTTPListenerPolicy
+metadata:
+  name: kgateway-external-websocket
+  namespace: {{ .Release.Namespace }}
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: kgateway-external
+  # NetBird clients reach the relay over a WebSocket (/relay and /ws-proxy/);
+  # Envoy rejects upgrade requests with 403 unless the upgrade is enabled.
+  upgradeConfig:
+    enabledUpgrades:
+      - websocket
