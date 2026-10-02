@@ -55,6 +55,8 @@ spec:
                 - SYS_RESOURCE
                 - SYS_ADMIN
             allowPrivilegeEscalation: true
+            # Needed to open the host's /dev/net/tun character device.
+            privileged: true
           livenessProbe:
             exec:
               command: ["netbird", "status", "--check", "live"]
@@ -88,6 +90,12 @@ spec:
             # peer identity must survive restarts.
             - name: state
               mountPath: /var/lib/netbird
+            - name: tun
+              mountPath: /dev/net/tun
       volumes:
+        - name: tun
+          hostPath:
+            path: /dev/net/tun
+            type: CharDevice
         - name: state
           emptyDir: {}
