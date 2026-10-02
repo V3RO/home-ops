@@ -85,7 +85,7 @@ spec:
           issuer: https://netbird.schober.dev/oauth2
           # false keeps the break-glass local owner reachable. Set true to
           # force all logins through the external IdP.
-          localAuthDisabled: false
+          localAuthDisabled: true
         service:
           type: ClusterIP
       dashboard:
