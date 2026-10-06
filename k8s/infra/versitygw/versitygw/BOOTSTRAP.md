@@ -254,3 +254,49 @@ retry after the account existed by then — an accident, not a guarantee,
 and it could genuinely exhaust its retries under load. Fixed with an
 explicit, bounded retry loop around just the `PutBucketPolicy` call (10
 attempts, 3s apart), rather than relying on that accident.
+
+---
+
+## Rotating a client credential (and the two ways it goes wrong)
+
+`refreshPolicy: CreatedOnce` means a client's secret is generated exactly once
+and never rotated. To force a new one, delete the client's ExternalSecret (its
+`creationPolicy: Owner` takes the Secret with it) and let the next Helm upgrade
+recreate it. Two traps, both hit for real while onboarding Minecraft:
+
+**1. A pre-existing Bitwarden item silently wins the race.** If
+`<client>-id` / `<client>-secret` already exist in the project — e.g. left over
+from an earlier cluster — the `PushSecret` and the consuming app's
+`ExternalSecret` both fire on the same reconcile. Observed: the PushSecret
+reported `PushSecret synced successfully`, and the consumer still read the
+*old* value, giving `SignatureDoesNotMatch` on every upload. Forcing a
+re-push (`kubectl annotate pushsecret ... force-sync=<ts>`) and then re-reading
+the consumer made them agree. **Never trust the PushSecret's `Ready` condition
+as proof that the remote value is the local one** — compare the bytes.
+
+**2. The generator's default charset can produce a credential that is not a
+valid command-line argument.** The `Password` generator's symbol set includes
+`-`, and it shuffles the result, so a generated secret can start with `-`.
+`mc alias set <alias> <endpoint> <key> <secret>` classifies arguments from
+argv, not from shell quoting, so such a secret is parsed as an unknown flag:
+
+```
+mc: <ERROR> Invalid command usage, flag provided but not defined: -Ke|T9V8...
+```
+
+Note it also printed the secret into the Job log. Fixed by generating
+alphanumeric-only secrets (`symbols: 0` in
+[templates/cnpg-client-credentials.yaml](templates/cnpg-client-credentials.yaml));
+42 characters of `[A-Za-z0-9]` is ~250 bits, and it removes this failure class
+for every S3 consumer (`mc`, `aws`, shell scripts) at once. Existing secrets
+are untouched — the change only affects newly generated ones.
+
+**Rotating the local Secret is only half the job.** versitygw's own account
+store still holds the previous secret. `create-users.sh` is what reconciles
+it: its `PATCH create-user` returns `409` for an existing account and the
+script then explicitly calls `update-user` with the current secret. That Job's
+name hashes only the script and the client list, so it will **not** re-run just
+because a credential changed — delete the completed
+`versitygw-create-users-<hash>` Job *before* the Helm upgrade that should
+re-run it. Its closing `verify_user` is the check that would otherwise catch a
+mismatch, so read the Job log rather than assuming `Complete` means correct.
