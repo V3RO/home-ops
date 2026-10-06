@@ -63,6 +63,16 @@ home-ops-app-chart:
     type: LoadBalancer
     annotations:
       io.cilium/lb-ipam-ips: "10.1.40.92"
+      # The Service source in external-dns-unifi turns this into an A record
+      # on the UniFi gateway (192.168.1.1) pointing at the LoadBalancer VIP
+      # above. That gateway is both the LAN resolver and AdGuard's upstream
+      # for `[/schober.dev/]`, and NetBird hands all client DNS to AdGuard --
+      # so one record serves LAN clients and NetBird peers alike.
+      #
+      # Minecraft is not HTTP, so there is no HTTPRoute to carry this and no
+      # Gateway in the picture: this is deliberately the only record for a
+      # non-HTTP service in the cluster.
+      external-dns.alpha.kubernetes.io/hostname: vanilla.minecraft.schober.dev
     ports:
       - name: proxy
         port: 25565
