@@ -52,7 +52,14 @@ minecraft:
     #             Modrinth lookup returns nothing at all.
     #   :version  pinned by version NUMBER, not ID: an ID overrides the loader
     #             and Minecraft compatibility checks, a number does not.
-    modrinthProjects: "lithium?:mc26.3-0.26.2-fabric"
+    # Lithium is tagged fabric+quilt and resolves on its own. FerriteCore is
+    # tagged fabric ONLY, so a quilt-filtered lookup returns nothing for it --
+    # hence the explicit `fabric:` prefix, which overrides the loader filter.
+    # Its 26.3 tag is still the unproven one: published 2026-03-24 (the 26.1
+    # release day) while declaring 26.1-26.3, so it is a forward declaration
+    # rather than a build tested against 26.3. The `?` only covers a failed
+    # lookup, not a runtime failure -- if the server misbehaves, drop this entry.
+    modrinthProjects: "lithium?:mc26.3-0.26.2-fabric,fabric:ferrite-core?:9.0.0-fabric"
 
   jvm:
     memory: 6G
