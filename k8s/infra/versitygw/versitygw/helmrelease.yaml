@@ -53,6 +53,12 @@ spec:
     dataClients:
       - name: forgejo-data
         bucket: forgejo
+      # Account name doubles as the S3 access key ID. The bucket must be
+      # created by this chart (admin API, with an owner header), not by a
+      # client-side `mc mb` -- which is why the Minecraft chart is configured
+      # with backup.s3.createBucketIfNotExists: false.
+      - name: minecraft
+        bucket: minecraft-backups
 
     versitygw:
       image:

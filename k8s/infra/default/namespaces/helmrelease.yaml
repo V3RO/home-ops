@@ -127,3 +127,15 @@ spec:
       - name: volsync-system
       - name: reloader
       - name: bentopdf
+      # Minecraft is raw custom TCP on 25565 with long-lived game sessions.
+      # L4 interception by ztunnel adds a variable that is hard to debug and
+      # buys nothing here, so both namespaces opt out of the ambient mesh
+      # explicitly rather than inheriting the cluster-wide default.
+      - name: minecraft
+        labels:
+          istio.io/dataplane-mode: none
+      # The router holds cluster-wide read on Services, so it is deliberately
+      # kept out of the namespace that runs the game containers.
+      - name: mc-router
+        labels:
+          istio.io/dataplane-mode: none

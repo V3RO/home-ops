@@ -1,0 +1,92 @@
+# mc-router: single hostname-aware entry point for Minecraft servers.
+#
+# There is no upstream Helm chart, so per the repo's application strategy this
+# wraps home-ops-app-chart. That chart renders the Deployment, Service and
+# ServiceAccount; it does not render RBAC, so templates/rbac.yaml adds the
+# ClusterRole/ClusterRoleBinding.
+
+home-ops-app-chart:
+  fullnameOverride: mc-router
+
+  replicaCount: 1
+  strategy:
+    # Single router; two instances would race on the route table.
+    type: Recreate
+
+  image:
+    repository: itzg/mc-router
+    tag: "1.47.2"
+    pullPolicy: IfNotPresent
+
+  args:
+    - --in-kube-cluster
+    - --api-binding=:8080
+    - --metrics-backend=prometheus
+    - --record-logins
+    - --connection-rate-limit=1
+    # --auto-scale-up / --auto-scale-down deliberately ABSENT: they require
+    # StatefulSet backends and would flap against Argo's selfHeal. See §9 of
+    # MINECRAFT_SELF_HOSTING_PLAN.md.
+
+  ports:
+    - name: proxy
+      containerPort: 25565
+      protocol: TCP
+    - name: web
+      containerPort: 8080
+      protocol: TCP
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
+
+  serviceAccount:
+    create: true
+    name: mc-router
+
+  service:
+    enabled: true
+    # VIP allocated by Cilium LB IPAM from lb-pool-01 (10.1.40.64/26), which
+    # the NetBird routing peer already advertises as part of 10.1.40.0/24.
+    #
+    # Pinned rather than dynamic: the NetBird DNS record for
+    # vanilla.minecraft.schober.dev points at this address, so it must not
+    # change when the Service is recreated.
+    type: LoadBalancer
+    annotations:
+      io.cilium/lb-ipam-ips: "10.1.40.92"
+    ports:
+      - name: proxy
+        port: 25565
+        targetPort: proxy
+        protocol: TCP
+      # Exposed in-cluster only for scraping; it is NOT published outside the
+      # cluster. Only `proxy` is reachable from the NetBird network.
+      - name: web
+        port: 8080
+        targetPort: web
+        protocol: TCP
+
+  # TCP probes on the API port rather than an HTTP GET /routes: /routes only
+  # returns a JSON body when the client sends Accept: application/json, and its
+  # exact status for an empty route table is not a contract worth depending on
+  # for pod health. A TCP check answers the only question that matters here --
+  # is the router process listening.
+  livenessProbe:
+    tcpSocket:
+      port: web
+    initialDelaySeconds: 10
+    periodSeconds: 30
+  readinessProbe:
+    tcpSocket:
+      port: web
+    initialDelaySeconds: 5
+    periodSeconds: 15

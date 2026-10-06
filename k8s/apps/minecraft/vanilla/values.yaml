@@ -1,0 +1,122 @@
+# Vanilla (Quilt) Minecraft server.
+#
+# Everything lives under the `minecraft` key because this wrapper chart's only
+# dependency is the HelmForge chart of the same name.
+#
+# Design rationale (storage class, sizing, no auto-scaling, why both
+# `existingSecret` keys are load-bearing) is in MINECRAFT_SELF_HOSTING_PLAN.md.
+
+minecraft:
+  # Keeps the Deployment and Service literally named "vanilla".
+  fullnameOverride: vanilla
+
+  image:
+    # Java 21 for MC 1.20.5-1.21.x. Pin, never float.
+    tag: 2026.9.2-java21
+
+  server:
+    eula: true
+    # The server TYPE is Quilt; the object name stays "vanilla" so the
+    # identity in Git is stable if the type ever changes.
+    type: QUILT
+    # PIN — never LATEST.
+    version: "1.21.8"
+    motd: "schober.dev vanilla"
+    maxPlayers: 15
+    viewDistance: 8
+    simulationDistance: 6
+    difficulty: normal
+    gameMode: survival
+
+  jvm:
+    memory: 6G
+    # Stable heap; avoids resizing churn under load.
+    initMemory: 6G
+    useAikarFlags: true
+
+  auth:
+    onlineMode: true
+    # Whitelist is deliberately NOT enforced yet: the player list is not known.
+    # Turn enforceWhitelist on (and fill `whitelist`) before this is ever
+    # reachable by anyone outside the NetBird peer group.
+    enforceWhitelist: false
+    whitelist: ""
+    ops: ""
+
+  rcon:
+    # REQUIRED for backups: the pre-backup step runs save-all flush / save-off
+    # over RCON, and the chart hard-fails the render if rcon is disabled while
+    # backup is enabled.
+    enabled: true
+    existingSecret: vanilla-rcon
+    # ClusterIP-only; the backup Job reaches the pod directly.
+    serviceEnabled: false
+
+  persistence:
+    enabled: true
+    # Local SSD — see §4 of the plan. Accepts that the pod is pinned to the
+    # node holding the volume (RWO on a node-local PV); node loss means restore
+    # from S3, not failover.
+    storageClass: openebs-hostpath
+    size: 20Gi
+
+  resources:
+    requests:
+      cpu: "1"
+      memory: 8Gi
+    limits:
+      cpu: "4"
+      memory: 10Gi
+
+  metrics:
+    enabled: true
+    serviceMonitor:
+      # This cluster has no Prometheus Operator, so the CR would break the sync.
+      enabled: false
+
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
+
+  service:
+    # ClusterIP only: mc-router is the sole thing that should reach the server.
+    type: ClusterIP
+    annotations:
+      mc-router.itzg.me/externalServerName: "vanilla.minecraft.schober.dev"
+
+  backup:
+    enabled: true
+    schedule: "0 4 * * *"
+    archivePrefix: vanilla
+    excludes: "*.jar cache logs"
+    concurrencyPolicy: Forbid
+    suspend: false
+    s3:
+      endpoint: "http://versitygw.versitygw.svc.cluster.local:7070"
+      bucket: "minecraft-backups"
+      prefix: "vanilla"
+      # The VersityGW chart owns the bucket and creates it through its admin
+      # API with an owner header; a client-side create would diverge.
+      createBucketIfNotExists: false
+      existingSecret: vanilla-s3-credentials
+    images:
+      # Pin the backup containers rather than tracking the chart's appVersion.
+      worker: docker.io/itzg/minecraft-server:2026.9.2
+      uploader: docker.io/helmforge/mc:1.0.0
+
+  # Render the RCON secret from Bitwarden instead of letting the chart generate
+  # it. Without `rcon.existingSecret` the chart's fallback calls Helm `lookup`,
+  # which returns empty under Argo's rendering, so it would emit a fresh
+  # `randAlphaNum 24` on every sync: a non-deterministic render, a permanently
+  # OutOfSync Application, and an RCON password that changes under the backup
+  # CronJob.
+  externalSecrets:
+    enabled: true
+    refreshInterval: "1h"
+    secretStoreRef:
+      name: bitwarden-app-secrets
+      kind: ClusterSecretStore
+    data:
+      - secretKey: rcon-password
+        remoteRef:
+          key: minecraft-rcon-secret

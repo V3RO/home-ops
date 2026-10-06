@@ -1,0 +1,30 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: mc-router-services-watcher
+rules:
+  # Read-only on purpose. With auto-scaling deliberately out of scope
+  # (MINECRAFT_SELF_HOSTING_PLAN.md §9) mc-router never mutates a workload, so
+  # it needs no `patch`, no StatefulSet access and no Secret access. A
+  # compromised router therefore yields read-only Service metadata.
+  #
+  # A namespaced Role cannot grant this: mc-router runs with KUBE_NAMESPACE
+  # unset so that one router can serve every namespace, which requires
+  # cluster-scoped RBAC. That is the whole reason it lives in its own
+  # namespace rather than inside `minecraft`.
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["watch", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: mc-router-services-watcher
+subjects:
+  - kind: ServiceAccount
+    name: mc-router
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: ClusterRole
+  name: mc-router-services-watcher
+  apiGroup: rbac.authorization.k8s.io
