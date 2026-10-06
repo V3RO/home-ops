@@ -28,13 +28,6 @@ minecraft:
     # The server TYPE is Quilt; the release name is independent of it, so
     # changing the type later does not rename anything.
     type: QUILT
-    # PIN — never LATEST.
-    #
-    # 26.3 is the current release (Mojang's year.release scheme replaced
-    # 1.21.x). Quilt still ships loader builds for it.
-    #
-    # Upgrading is one-way: the world's data version is only ever raised, so a
-    # downgrade needs the pre-upgrade S3 archive, not just a tag change.
     version: "26.3"
     motd: "schober.dev vanilla"
     maxPlayers: 15
@@ -43,35 +36,42 @@ minecraft:
     difficulty: normal
     gameMode: survival
 
+    # Consumed by the itzg image together with MODRINTH_PROJECTS below.
+    extraEnv:
+      - name: MODRINTH_PROJECTS_DEFAULT_VERSION_TYPE
+        value: release
+
+  mods:
+    # Performance mods, installed at startup by the itzg image from Modrinth.
+    # The jars land in /data/mods (local PVC) and are excluded from backups, so
+    # this pinned list -- not the PVC -- is the source of truth.
+    #
+    #   ?         optional: with no compatible build, warn and boot anyway
+    #             instead of failing the whole startup.
+    #   fabric:   needed for mods not tagged with the quilt loader, or the
+    #             Modrinth lookup returns nothing at all.
+    #   :version  pinned by version NUMBER, not ID: an ID overrides the loader
+    #             and Minecraft compatibility checks, a number does not.
+    modrinthProjects: "lithium?:mc26.3-0.26.2-fabric"
+
   jvm:
     memory: 6G
-    # Stable heap; avoids resizing churn under load.
     initMemory: 6G
     useAikarFlags: true
 
   auth:
     onlineMode: true
-    # Whitelist is deliberately NOT enforced yet: the player list is not known.
-    # Turn enforceWhitelist on (and fill `whitelist`) before this is ever
-    # reachable by anyone outside the NetBird peer group.
     enforceWhitelist: false
     whitelist: ""
     ops: ""
 
   rcon:
-    # REQUIRED for backups: the pre-backup step runs save-all flush / save-off
-    # over RCON, and the chart hard-fails the render if rcon is disabled while
-    # backup is enabled.
     enabled: true
     existingSecret: minecraft-vanilla-rcon
-    # ClusterIP-only; the backup Job reaches the pod directly.
     serviceEnabled: false
 
   persistence:
     enabled: true
-    # Local SSD — see §4 of the plan. Accepts that the pod is pinned to the
-    # node holding the volume (RWO on a node-local PV); node loss means restore
-    # from S3, not failover.
     storageClass: openebs-hostpath
     size: 20Gi
 
@@ -94,13 +94,8 @@ minecraft:
     prometheus.io/port: "8080"
 
   service:
-    # ClusterIP only: mc-router is the sole thing that should reach the server.
     type: ClusterIP
     annotations:
-      # The players' address, and deliberately NOT renamed with the release:
-      # this is the name people type in the Minecraft client, and it is also
-      # the key mc-router routes on. Renaming it would invalidate every
-      # client's saved server entry and the DNS record for it.
       mc-router.itzg.me/externalServerName: "vanilla.minecraft.schober.dev"
 
   backup:
@@ -114,21 +109,12 @@ minecraft:
       endpoint: "http://versitygw.versitygw.svc.cluster.local:7070"
       bucket: "minecraft-backups"
       prefix: "minecraft-vanilla"
-      # The VersityGW chart owns the bucket and creates it through its admin
-      # API with an owner header; a client-side create would diverge.
       createBucketIfNotExists: false
       existingSecret: minecraft-vanilla-s3-credentials
     images:
-      # Pin the backup containers rather than tracking the chart's appVersion.
       worker: docker.io/itzg/minecraft-server:2026.9.2
       uploader: docker.io/helmforge/mc:1.0.0
 
-  # Render the RCON secret from Bitwarden instead of letting the chart generate
-  # it. Without `rcon.existingSecret` the chart's fallback calls Helm `lookup`,
-  # which returns empty under Argo's rendering, so it would emit a fresh
-  # `randAlphaNum 24` on every sync: a non-deterministic render, a permanently
-  # OutOfSync Application, and an RCON password that changes under the backup
-  # CronJob.
   externalSecrets:
     enabled: true
     refreshInterval: "1h"
