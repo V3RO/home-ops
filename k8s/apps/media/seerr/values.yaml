@@ -1,8 +1,6 @@
 # --- Official seerr-chart values (dependency, aliased to `seerr`) ---
 seerr:
   fullnameOverride: seerr
-  image:
-    tag: "" # defaults to the chart appVersion (currently v3.4.0)
   service:
     type: ClusterIP
     port: 80
