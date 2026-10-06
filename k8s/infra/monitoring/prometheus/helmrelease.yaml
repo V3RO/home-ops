@@ -36,6 +36,22 @@ spec:
           storageClass: longhorn
           size: 10Gi
 
+        # The chart default is retention: 15d, which is wildly out of proportion
+        # to this 10Gi volume: the actual ingest rate (explicit scrape jobs plus
+        # Alloy's remote-write of annotated pods) is ~12GB/day, so 15d of data
+        # would need on the order of 180GB. That mismatch jammed the volume to
+        # 100% and wedged Prometheus in an unrecoverable crash loop, because
+        # retention compaction only runs *after* a successful TSDB start - and
+        # the start fails on the full WAL. It could never free its own space.
+        #
+        # retention.size is therefore the setting that actually matters; it caps
+        # the TSDB below the volume size and leaves room for the WAL plus the
+        # head chunks that retention.size does not account for (~1-1.5GB here).
+        # retention.time stays as a belt-and-braces upper bound on age, but at
+        # this ingest rate the size limit is what will always fire first.
+        retention: 15d
+        retentionSize: 7GB
+
       # Disable alertmanager HA
       alertmanager:
         enabled: false
