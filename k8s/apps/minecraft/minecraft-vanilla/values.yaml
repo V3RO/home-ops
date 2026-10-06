@@ -7,8 +7,10 @@
 # `existingSecret` keys are load-bearing) is in MINECRAFT_SELF_HOSTING_PLAN.md.
 
 minecraft:
-  # Keeps the Deployment and Service literally named "vanilla".
-  fullnameOverride: vanilla
+  # Keeps the Deployment, Service and PVC named "minecraft-vanilla". The Argo
+  # Application and the Helm release name come from the directory name
+  # (k8s/apps/minecraft/minecraft-vanilla), so all four agree.
+  fullnameOverride: minecraft-vanilla
 
   image:
     # Java 21 for MC 1.20.5-1.21.x. Pin, never float.
@@ -16,8 +18,8 @@ minecraft:
 
   server:
     eula: true
-    # The server TYPE is Quilt; the object name stays "vanilla" so the
-    # identity in Git is stable if the type ever changes.
+    # The server TYPE is Quilt; the release name is independent of it, so
+    # changing the type later does not rename anything.
     type: QUILT
     # PIN — never LATEST.
     version: "1.21.8"
@@ -48,7 +50,7 @@ minecraft:
     # over RCON, and the chart hard-fails the render if rcon is disabled while
     # backup is enabled.
     enabled: true
-    existingSecret: vanilla-rcon
+    existingSecret: minecraft-vanilla-rcon
     # ClusterIP-only; the backup Job reaches the pod directly.
     serviceEnabled: false
 
@@ -82,23 +84,27 @@ minecraft:
     # ClusterIP only: mc-router is the sole thing that should reach the server.
     type: ClusterIP
     annotations:
+      # The players' address, and deliberately NOT renamed with the release:
+      # this is the name people type in the Minecraft client, and it is also
+      # the key mc-router routes on. Renaming it would invalidate every
+      # client's saved server entry and the DNS record for it.
       mc-router.itzg.me/externalServerName: "vanilla.minecraft.schober.dev"
 
   backup:
     enabled: true
     schedule: "0 4 * * *"
-    archivePrefix: vanilla
+    archivePrefix: minecraft-vanilla
     excludes: "*.jar cache logs"
     concurrencyPolicy: Forbid
     suspend: false
     s3:
       endpoint: "http://versitygw.versitygw.svc.cluster.local:7070"
       bucket: "minecraft-backups"
-      prefix: "vanilla"
+      prefix: "minecraft-vanilla"
       # The VersityGW chart owns the bucket and creates it through its admin
       # API with an owner header; a client-side create would diverge.
       createBucketIfNotExists: false
-      existingSecret: vanilla-s3-credentials
+      existingSecret: minecraft-vanilla-s3-credentials
     images:
       # Pin the backup containers rather than tracking the chart's appVersion.
       worker: docker.io/itzg/minecraft-server:2026.9.2

@@ -1,5 +1,5 @@
 apiVersion: v2
-name: vanilla
+name: minecraft-vanilla
 description: "Vanilla (Quilt) Minecraft server for homelab"
 type: application
 version: 0.1.0
