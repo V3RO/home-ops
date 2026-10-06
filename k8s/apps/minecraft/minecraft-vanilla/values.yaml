@@ -13,8 +13,15 @@ minecraft:
   fullnameOverride: minecraft-vanilla
 
   image:
-    # Java 21 for MC 1.20.5-1.21.x. Pin, never float.
-    tag: 2026.9.2-java21
+    # Java major must match the game version, and it is a hard requirement, not
+    # a preference: 26.x reports javaVersion.majorVersion=25 in its version
+    # metadata, and the server refuses to start on 21.
+    #
+    #   <= 1.21.x  ->  -java21
+    #   26.x       ->  -java25
+    #
+    # Pin, never float.
+    tag: 2026.9.2-java25
 
   server:
     eula: true
@@ -22,7 +29,13 @@ minecraft:
     # changing the type later does not rename anything.
     type: QUILT
     # PIN — never LATEST.
-    version: "1.21.8"
+    #
+    # 26.3 is the current release (Mojang's year.release scheme replaced
+    # 1.21.x). Quilt still ships loader builds for it.
+    #
+    # Upgrading is one-way: the world's data version is only ever raised, so a
+    # downgrade needs the pre-upgrade S3 archive, not just a tag change.
+    version: "26.3"
     motd: "schober.dev vanilla"
     maxPlayers: 15
     viewDistance: 8
