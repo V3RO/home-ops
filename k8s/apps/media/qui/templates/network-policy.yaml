@@ -1,0 +1,56 @@
+{{- if (default false .Values.networkPolicy.enabled) }}
+{{- /* qui's HTTP port, as configured under home-ops-app-chart.ports in values.yaml.
+       It cannot be read from here: a subchart only sees its own values. */}}
+{{- $port := 7476 }}
+# Deliberately does not duplicate the namespace-wide policies from
+# qbittorrent/templates/network-policy.yaml: default-deny-egress already allows
+# DNS (53) and all intra-namespace traffic, which covers qui ->
+# qbittorrent.media.svc.cluster.local:80.
+---
+# Ingress: only the internal ingress gateway reaches qui. There is no
+# Authentik forward-auth in front of it, so /healthz/* and /api/auth/oidc/*
+# stay reachable by design; the session is enforced by qui itself.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: qui-allow-ingress
+  namespace: {{ .Release.Namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: qui
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: istio-ingress-internal
+      ports:
+        - protocol: TCP
+          port: {{ $port }}
+---
+# Egress: Authentik for OIDC discovery, token exchange and userinfo, which qui
+# performs against https://auth.schober.dev. The browser-side redirect does not
+# need this rule, but the server-side code exchange and the JWKS/issuer
+# discovery calls do.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: qui-allow-egress-authentik
+  namespace: {{ .Release.Namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: qui
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: authentik
+      ports:
+        - protocol: TCP
+          port: 9000
+{{- end }}

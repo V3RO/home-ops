@@ -1,0 +1,106 @@
+home-ops-app-chart:
+  image:
+    repository: ghcr.io/autobrr/qui
+    tag: v1.30.0
+    pullPolicy: IfNotPresent
+
+  strategy:
+    type: Recreate
+
+  ports:
+    - name: http
+      containerPort: 7476
+      protocol: TCP
+
+  env:
+    # The entrypoint chowns /config for PUID:PGID and then drops privileges.
+    - name: PUID
+      value: "1000"
+    - name: PGID
+      value: "1000"
+    - name: TZ
+      value: Europe/Vienna
+    # Native OIDC against Authentik. qui refuses to start when the issuer is
+    # unreachable, so the Authentik provider (blueprint-qui) must exist first.
+    - name: QUI__OIDC_ENABLED
+      value: "true"
+    - name: QUI__OIDC_ISSUER
+      value: "https://auth.schober.dev/application/o/qui/"
+    - name: QUI__OIDC_CLIENT_ID
+      value: "qui"
+    - name: QUI__OIDC_REDIRECT_URL
+      value: "https://qui.schober.dev/api/auth/oidc/callback"
+    - name: QUI__OIDC_DISABLE_BUILT_IN_LOGIN
+      value: "true"
+    - name: QUI__SESSION_COOKIE_SECURE
+      value: "true"
+    - name: QUI__ALLOWED_HOSTS
+      value: "qui.schober.dev,localhost"
+    - name: QUI__CHECK_FOR_UPDATES
+      value: "false"
+    - name: QUI__LOG_LEVEL
+      value: "INFO"
+    # QUI__OIDC_CLIENT_SECRET is injected by the externalSecrets entry below
+    # (template key + injectAsEnv), so it never appears on the command line.
+
+  livenessProbe:
+    httpGet:
+      path: /healthz/liveness
+      port: http
+    initialDelaySeconds: 15
+    periodSeconds: 30
+
+  readinessProbe:
+    httpGet:
+      path: /healthz/readiness
+      port: http
+    initialDelaySeconds: 5
+    periodSeconds: 10
+
+  service:
+    ports:
+      - name: http
+        port: 7476
+        targetPort: http
+        protocol: TCP
+
+  home-ops-route-chart:
+    enabled: true
+    host: qui.schober.dev
+    backend:
+      port: 7476
+
+  persistence:
+    # SQLite database, config.toml, tracker icon cache and backups.
+    config:
+      enabled: true
+      storageClass: longhorn
+      size: 2Gi
+      mountPath: /config
+    # Same RWX media volume qBittorrent and Jellyfin use. uid 1000 cannot write
+    # /data/media (root-owned), so qui can read library files but not change
+    # them; cross-seed link directories belong under /data (e.g. /data/cross-seed),
+    # which is writable.
+    data:
+      enabled: true
+      existingClaim: media-data
+      mountPath: /data
+
+  externalSecrets:
+    oidc:
+      enabled: true
+      refreshInterval: 12h
+      secretStoreRef:
+        kind: ClusterSecretStore
+        name: bitwarden-app-secrets
+      data:
+        - secretKey: secret
+          remoteRef:
+            key: authentik-qui-client-secret
+      template:
+        data:
+          QUI__OIDC_CLIENT_SECRET: "{{ .secret }}"
+      injectAsEnv: true
+
+networkPolicy:
+  enabled: true
