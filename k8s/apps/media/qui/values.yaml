@@ -40,8 +40,39 @@ home-ops-app-chart:
       value: "false"
     - name: QUI__LOG_LEVEL
       value: "INFO"
+    # Postgres, not qui's default SQLite. discrete settings rather than a DSN so
+    # the generated password never has to be URL-encoded; the value itself
+    # arrives through QUI__DATABASE_PASSWORD_FILE (see extraVolumeMounts below),
+    # which qui also reads at a higher precedence than QUI__DATABASE_PASSWORD.
+    - name: QUI__DATABASE_ENGINE
+      value: postgres
+    - name: QUI__DATABASE_HOST
+      value: qui-postgres-rw.media.svc.cluster.local
+    - name: QUI__DATABASE_PORT
+      value: "5432"
+    - name: QUI__DATABASE_USER
+      value: qui
+    - name: QUI__DATABASE_NAME
+      value: qui
+    - name: QUI__DATABASE_SSL_MODE
+      value: disable
+    - name: QUI__DATABASE_PASSWORD_FILE
+      value: /var/run/qui-db/password
     # QUI__OIDC_CLIENT_SECRET is injected by the externalSecrets entry below
     # (template key + injectAsEnv), so it never appears on the command line.
+
+  # The CNPG credentials secret, mounted for the password file above. A plain
+  # Secret volume rather than an ExternalSecret: Bitwarden already backs it
+  # through the cnpg-qui-credentials ExternalSecret, so re-fetching it here
+  # would only add a second copy that could drift.
+  extraVolumes:
+    - name: qui-db-credentials
+      secret:
+        secretName: cnpg-qui-credentials
+  extraVolumeMounts:
+    - name: qui-db-credentials
+      mountPath: /var/run/qui-db
+      readOnly: true
 
   # qui validates the Host header, and the kubelet sends the pod IP as Host
   # when it probes a pod directly. qui only auto-allows loopback plus its own
@@ -85,7 +116,9 @@ home-ops-app-chart:
       port: 7476
 
   persistence:
-    # SQLite database, config.toml, tracker icon cache and backups.
+    # No database here any more: state lives in the CNPG cluster below. This
+    # only holds config.toml (including the session secret that protects stored
+    # instance credentials), the tracker icon cache and qui's own backups.
     config:
       enabled: true
       storageClass: longhorn
@@ -118,3 +151,29 @@ home-ops-app-chart:
 
 networkPolicy:
   enabled: true
+
+# ──────────────────────────────────────────────
+# Database (home-ops-cnpg-cluster-chart)
+# ──────────────────────────────────────────────
+# Same shape as sonarr/radarr/prowlarr/seerr: 3 instances, openebs-hostpath
+# (node-local, and CNPG handles replication itself), barman-cloud backups to
+# versitygw under the cluster's own prefix.
+home-ops-cnpg-cluster-chart:
+  enabled: true
+  cluster:
+    # 2Gi matches sonarr/radarr/prowlarr/seerr. qui's own state is small: the
+    # instance list, licenses, torznab indexers, tracker/file caches.
+    storage:
+      size: 2Gi
+      class: openebs-hostpath
+  backup:
+    # Existing clusters are staggered 03:05-03:50 (authentik 05, grafana 10,
+    # immich 15, n8n 20, mealie 25, forgejo + netbird 30, prowlarr 35,
+    # radarr 40, sonarr 45, seerr 50); 03:55 was the next free slot.
+    schedule: "0 55 3 * * *"
+    # qui's own versitygw account (versitygw cnpgClients) -- not the shared
+    # root credentials.
+    credentials:
+      accessKeyIdRef: qui-backup-id
+      secretAccessKeyRef: qui-backup-secret
+
