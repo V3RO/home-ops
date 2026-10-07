@@ -43,19 +43,33 @@ home-ops-app-chart:
     # QUI__OIDC_CLIENT_SECRET is injected by the externalSecrets entry below
     # (template key + injectAsEnv), so it never appears on the command line.
 
+  # qui validates the Host header, and the kubelet sends the pod IP as Host
+  # when it probes a pod directly. qui only auto-allows loopback plus its own
+  # hostname, so both probes came back 400 and the liveness failure restarted
+  # the container every ~45s. The Host header override below is what makes them
+  # pass; keep it whenever an allowlist is set. (A missing Host on a TCP-connect
+  # probe is not the same thing: qui answers 400, not 200.)
   livenessProbe:
     httpGet:
       path: /healthz/liveness
       port: http
+      httpHeaders:
+        - name: Host
+          value: localhost
     initialDelaySeconds: 15
     periodSeconds: 30
+    timeoutSeconds: 5
 
   readinessProbe:
     httpGet:
       path: /healthz/readiness
       port: http
+      httpHeaders:
+        - name: Host
+          value: localhost
     initialDelaySeconds: 5
     periodSeconds: 10
+    timeoutSeconds: 5
 
   service:
     ports:
