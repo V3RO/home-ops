@@ -123,6 +123,17 @@ spec:
       ports:
         - protocol: TCP
           port: {{ .Values.qbittorrent.service.targetPort }}
+    # qui (k8s/apps/media/qui) is the qBittorrent UI now and drives the Web API
+    # on the internal Service. Without this rule its requests are dropped --
+    # neutrally, as an i/o timeout -- because the only podSelector below is
+    # scoped to the gluetun proxy port.
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: qui
+      ports:
+        - protocol: TCP
+          port: {{ .Values.qbittorrent.service.targetPort }}
     - from:
         - podSelector: {}
       ports:
