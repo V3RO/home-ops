@@ -110,6 +110,11 @@ spec:
               secretKeyRef:
                 name: authentik-secret
                 key: netbirdClientSecret
+          - name: AUTHENTIK_QUI_CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: authentik-secret
+                key: quiClientSecret
           - name: AUTHENTIK_USER_PASSWORD_V3RO
             valueFrom:
               secretKeyRef:
@@ -153,6 +158,7 @@ spec:
           - blueprint-kiali
           - blueprint-flux
           - blueprint-netbird
+          - blueprint-qui
           - blueprint-valkey-admin
           - blueprint-proxy-outpost
           - blueprint-users
@@ -478,6 +484,22 @@ spec:
               metaLaunchUrl: https://netbird.schober.dev
               icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/netbird.svg
             access: user
+          - name: qui
+            provider:
+              kind: oauth2
+              name: qui
+              clientId: qui
+              clientSecretEnv: AUTHENTIK_QUI_CLIENT_SECRET
+              includeGroups: true
+              redirectUris:
+                - url: https://qui.schober.dev/api/auth/oidc/callback
+                  matchingMode: strict
+            application:
+              name: qui
+              slug: qui
+              metaLaunchUrl: https://qui.schober.dev
+              icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/qui.svg
+            access: admin
 
     postgres:
       imageName: ghcr.io/cloudnative-pg/postgresql:18.1
@@ -506,6 +528,7 @@ spec:
         kialiClientSecret: authentik-kiali-client-secret
         fluxClientSecret: authentik-flux-client-secret
         netbirdClientSecret: authentik-netbird-client-secret
+        quiClientSecret: authentik-qui-client-secret
         userPasswords:
           - username: V3RO
             bitwardenItem: authentik-user-v3ro-password
