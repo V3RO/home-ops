@@ -246,6 +246,12 @@ data:
           {{- if $entry.provider.clientSecretEnv }}
           client_secret: !Env {{ $entry.provider.clientSecretEnv }}
           {{- end }}
+          {{- with .provider.grantTypes }}
+          grant_types:
+            {{- range . }}
+            - {{ . }}
+            {{- end }}
+          {{- end }}
           {{- with .provider.redirectUris }}
           redirect_uris:
             {{- range . }}

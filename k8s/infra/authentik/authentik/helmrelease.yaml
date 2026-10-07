@@ -490,6 +490,13 @@ spec:
               name: qui
               clientId: qui
               clientSecretEnv: AUTHENTIK_QUI_CLIENT_SECRET
+              # authentik 2026.x defaults an OAuth2 provider's grant_types to an
+              # empty list, and check_grant() then rejects every authorize
+              # request with invalid_request / "The request is otherwise
+              # malformed". Set the grants the authorization-code + refresh flow needs.
+              grantTypes:
+                - authorization_code
+                - refresh_token
               includeGroups: true
               redirectUris:
                 - url: https://qui.schober.dev/api/auth/oidc/callback
