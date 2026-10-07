@@ -510,6 +510,9 @@ spec:
 
     externalSecret:
       enabled: true
+      # Client secrets rotate in Bitwarden; a 1h interval left the running
+      # deployment stale for up to an hour after a rotation.
+      refreshInterval: 15m
       secretStoreRef:
         name: bitwarden-app-secrets
         kind: ClusterSecretStore
