@@ -49,6 +49,7 @@ spec:
       - sonarr
       - seerr
       - netbird
+      - qui
 
     dataClients:
       - name: forgejo-data
