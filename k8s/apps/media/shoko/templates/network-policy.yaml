@@ -34,7 +34,7 @@ spec:
         - protocol: TCP
           port: {{ $port }}
 ---
-# Egress: AniDB HTTP API + UDP client, TMDb, Sentry, GitHub plugin feed.
+# Egress: AniDB (HTTP API + UDP API), TMDb, Sentry, GitHub plugin feed.
 # DNS (53) and intra-namespace traffic already come from the namespace-wide
 # default-deny-egress in qbittorrent/templates/network-policy.yaml.
 apiVersion: networking.k8s.io/v1
@@ -50,12 +50,19 @@ spec:
     - Egress
   egress:
     - ports:
+        # AniDB HTTP API. This is NOT on port 80/443: AniDbSettings.HTTPServerUrl
+        # defaults to http://api.anidb.net:9001, i.e. plain HTTP over TCP 9001.
+        # Without this rule the import still recognises files over the UDP API but
+        # every GetAniDBAnimeJob fails in AniDB.HTTP.HttpRequest.Send(), so no
+        # series or file entries are ever created and the collection stays empty.
+        - protocol: TCP
+          port: 9001
+        # AniDB UDP API (UDPServerPort 9000) -- used for file/hash lookups.
+        - protocol: UDP
+          port: 9000
+        # TMDb, AniDB images, Sentry, GitHub plugin feed.
         - protocol: TCP
           port: 80
         - protocol: TCP
           port: 443
-        - protocol: UDP
-          port: 9000
-        - protocol: UDP
-          port: 9001
 {{- end }}
