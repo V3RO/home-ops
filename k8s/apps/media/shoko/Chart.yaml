@@ -1,0 +1,9 @@
+apiVersion: v2
+name: shoko
+description: "Shoko Server - anime collection manager (SQLite on longhorn, consumed by Jellyfin via Shokofin)"
+type: application
+version: 0.1.0
+dependencies:
+  - name: home-ops-app-chart
+    version: 0.3.1
+    repository: oci://zot.schober.dev/charts

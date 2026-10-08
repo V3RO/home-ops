@@ -1,0 +1,61 @@
+{{- if (default false .Values.networkPolicy.enabled) }}
+{{- /* Shoko's HTTP port. It cannot be read from home-ops-app-chart's values:
+       a subchart only sees its own. */}}
+{{- $port := 8111 }}
+---
+# Ingress: the internal gateway only, plus Jellyfin for the Shokofin plugin.
+# Shokofin does all of its Shoko traffic -- REST, SignalR and the image bytes it
+# proxies through its own anonymous Shokofin/Host route -- from inside the
+# jellyfin pod, so this rule is what the whole integration runs on.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: shoko-allow-ingress
+  namespace: {{ .Release.Namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: shoko
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: istio-ingress-internal
+      ports:
+        - protocol: TCP
+          port: {{ $port }}
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: jellyfin
+      ports:
+        - protocol: TCP
+          port: {{ $port }}
+---
+# Egress: AniDB HTTP API + UDP client, TMDb, Sentry, GitHub plugin feed.
+# DNS (53) and intra-namespace traffic already come from the namespace-wide
+# default-deny-egress in qbittorrent/templates/network-policy.yaml.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: shoko-allow-egress
+  namespace: {{ .Release.Namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: shoko
+  policyTypes:
+    - Egress
+  egress:
+    - ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443
+        - protocol: UDP
+          port: 9000
+        - protocol: UDP
+          port: 9001
+{{- end }}

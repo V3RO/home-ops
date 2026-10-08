@@ -159,6 +159,7 @@ spec:
           - blueprint-flux
           - blueprint-netbird
           - blueprint-qui
+          - blueprint-shoko
           - blueprint-valkey-admin
           - blueprint-proxy-outpost
           - blueprint-users
@@ -311,6 +312,21 @@ spec:
               slug: valkey-admin
               metaLaunchUrl: https://valkey-admin.schober.dev
               icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/valkey.svg
+            access: admin
+          # forward_single, like the other media UIs. Shokofin reaches Shoko over
+          # the in-cluster Service rather than this hostname, and proxies Shoko
+          # artwork through its own anonymous route on Jellyfin, so this
+          # forward-auth never sits in the integration path.
+          - name: shoko
+            provider:
+              name: Shoko
+              externalHost: https://shoko.schober.dev
+              mode: forward_single
+            application:
+              name: Shoko
+              slug: shoko
+              metaLaunchUrl: https://shoko.schober.dev
+              icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/shoko.svg
             access: admin
           - name: jellyfin
             provider:

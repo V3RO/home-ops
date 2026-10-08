@@ -1,0 +1,131 @@
+# ──────────────────────────────────────────────
+# Shoko Server (home-ops-app-chart dependency)
+# ──────────────────────────────────────────────
+home-ops-app-chart:
+  image:
+    repository: ghcr.io/shokoanime/server
+    tag: v5.3.3
+    pullPolicy: IfNotPresent
+
+  # SQLite plus a ReadWriteOnce config volume: exactly one writer, ever.
+  strategy:
+    type: Recreate
+
+  # The entrypoint starts as root, creates/chowns the data dir and then drops to
+  # PUID:PGID with gosu. Do NOT set runAsNonRoot/runAsUser, and do NOT set
+  # readOnlyRootFilesystem: the entrypoint chowns /usr/src/app/build on every
+  # start. fsGroup makes the longhorn volume group-writable for uid 1000 so the
+  # entrypoint's ownership check already passes.
+  podSecurityContext:
+    fsGroup: 1000
+
+  ports:
+    - name: http
+      containerPort: 8111
+      protocol: TCP
+
+  env:
+    # uid/gid 1000 = owner of /data/media/anime and /data/media/anime-movies on
+    # the TrueNAS export (verified live: a write as uid 1000 succeeds, while
+    # /data/media itself is root-owned and not writable by 1000). PGID must be
+    # 1000, not the image default 100, or Shoko cannot write to the import
+    # folders. PUID=0 is rejected by the entrypoint -- and was the cause of the
+    # data loss in upstream issue #1292.
+    - name: PUID
+      value: "1000"
+    - name: PGID
+      value: "1000"
+    - name: TZ
+      value: Europe/Vienna
+    - name: UMASK
+      value: "002"
+    # v5.3.3 ignores ENABLE_RESTART / ENABLE_SHUTDOWN / NO_CHOWN /
+    # INSTALL_PACKAGES / EXTRA_GROUPS (all master-only). Do not add them here.
+
+  resources:
+    # The FAQ suggests ~1 GiB for the server; hashing and importing are CPU- and
+    # IO-heavy. Raise the limit, not just the request, if a full import gets
+    # OOM-killed.
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      memory: 2Gi
+
+  # /api/v3/Init/Status answers 200 as soon as Kestrel is up, including during
+  # first-run setup -- it proves the port works, nothing more. That is exactly
+  # what is wanted here: readiness must go true so the setup wizard is reachable.
+  startupProbe:
+    httpGet:
+      path: /api/v3/Init/Status
+      port: http
+      httpHeaders:
+        - name: Accept
+          value: application/json
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 60            # up to 10 min: first start builds the SQLite DB
+  livenessProbe:
+    httpGet:
+      path: /api/v3/Init/Status
+      port: http
+      httpHeaders:
+        - name: Accept
+          value: application/json
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readinessProbe:
+    httpGet:
+      path: /api/v3/Init/Status
+      port: http
+      httpHeaders:
+        - name: Accept
+          value: application/json
+    periodSeconds: 15
+    timeoutSeconds: 5
+
+  service:
+    ports:
+      - name: http
+        port: 80
+        targetPort: http
+        protocol: TCP
+
+  persistence:
+    # SHOKO_HOME (/home/shoko/.shoko/Shoko.CLI) holds SQLite/JMMServer.db3, the
+    # plugins' databases and config, images, logs, themes and DatabaseBackup.
+    # Mount the parent, as the upstream compose does -- the entrypoint creates
+    # the default Shoko.CLI directory itself.
+    config:
+      enabled: true
+      storageClass: longhorn
+      accessModes:
+        - ReadWriteOnce
+      size: 10Gi
+      mountPath: /home/shoko/.shoko
+    # The same RWX volume Jellyfin, qBittorrent and qui use. Mounted RW because
+    # the point of Shoko is to rename/move files in its import folders. Jellyfin
+    # has this volume read-only at the same /data path, which is what makes
+    # Shokofin's path mapping exact.
+    media:
+      enabled: true
+      existingClaim: media-data
+      mountPath: /data
+
+  home-ops-route-chart:
+    enabled: true
+    host: shoko.schober.dev
+    backend:
+      port: 80
+    # Creates the GatewayExtension + TrafficPolicy and the
+    # /outpost.goauthentik.io auth-callback rule. The media namespace is already
+    # covered by the ak-outpost-proxy ReferenceGrant, so this needs no infra
+    # change beyond the Authentik blueprint entry itself.
+    authentik:
+      enabled: true
+
+# Read by this chart's own templates/network-policy.yaml (the app subchart
+# cannot see parent values, and home-ops-app-chart has no policy template).
+networkPolicy:
+  enabled: true
