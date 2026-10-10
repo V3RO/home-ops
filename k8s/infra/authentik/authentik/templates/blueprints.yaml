@@ -288,6 +288,7 @@ data:
           policy_engine_mode: any
           {{- with .application.icon }}
           icon: {{ . }}
+          {{- end }}
       {{- end }}
       {{- if eq .access "user" }}
       - model: authentik_policies.policybinding
@@ -310,7 +311,6 @@ data:
         attrs:
           group: !Find [authentik_core.group, [name, "homelab-admins"]]
       {{- end }}
-{{- end }}
 {{- end }}
 
 {{- $proxyOutpost := .Values.authentik.blueprints.outposts.proxy }}
