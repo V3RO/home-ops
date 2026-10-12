@@ -72,12 +72,6 @@ minecraft:
     #   Quilt-tagged   lithium, tree-harvester, jade, snow-under-trees
     #   Fabric-only    ferrite-core, appleskin, moonrise-opt, clumps
     #
-    # snow-under-trees is bl4ckscor3's original, chosen over the
-    # "remastered" fork because the remastered one's WorldTickHandler calls
-    # ChunkHolder.getEntityTickingChunkFuture, which Moonrise's rewritten
-    # chunk system deliberately throws UnsupportedOperationException for --
-    # crashing the server on join. The original carries explicit Moonrise
-    # compat (upstream commit b28d991).
     #   No 26.3 build  lazydfu, modernfix -> `?` makes the lookup warn and
     #                  skip (checked 2026-10). LazyDFU is redundant anyway:
     #                  DFU is lazy in vanilla since 1.19.4.
@@ -86,7 +80,6 @@ minecraft:
       lithium?:mc26.3-0.26.2-fabric
       tree-harvester
       jade
-      snow-under-trees
       fabric:ferrite-core?:9.0.0-fabric
       fabric:appleskin:3.0.10+mc26.3
       fabric:moonrise-opt:1.2.0+61c1328
