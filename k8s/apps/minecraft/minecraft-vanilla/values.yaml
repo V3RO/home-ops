@@ -32,9 +32,9 @@ minecraft:
     version: "26.3"
     motd: "schober.dev vanilla"
     maxPlayers: 15
-    viewDistance: 8
+    viewDistance: 10
     simulationDistance: 6
-    difficulty: normal
+    difficulty: hard
     gameMode: survival
 
     # Consumed by the itzg image together with MODRINTH_PROJECTS below.
@@ -89,8 +89,8 @@ minecraft:
       datapack:veinminer-enchantment
 
   jvm:
-    memory: 6G
     initMemory: 6G
+    maxMemory: 9G
     useAikarFlags: true
 
   auth:
