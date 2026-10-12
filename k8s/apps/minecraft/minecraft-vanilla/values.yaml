@@ -78,7 +78,6 @@ minecraft:
     #   Datapacks      veinminer, veinminer-enchantment (needs veinminer)
     modrinthProjects: |
       lithium?:mc26.3-0.26.2-fabric
-      xaeros-world-map
       tree-harvester
       jade
       fabric:ferrite-core?:9.0.0-fabric
