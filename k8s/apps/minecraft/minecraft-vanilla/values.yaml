@@ -1,4 +1,4 @@
-# Vanilla (Quilt) Minecraft server.
+# Vanilla (Fabric) Minecraft server.
 #
 # Everything lives under the `minecraft` key because this wrapper chart's only
 # dependency is the HelmForge chart of the same name.
@@ -25,9 +25,10 @@ minecraft:
 
   server:
     eula: true
-    # The server TYPE is Quilt; the release name is independent of it, so
-    # changing the type later does not rename anything.
-    type: QUILT
+    # The release name is independent of the TYPE, so switching loaders
+    # does not rename anything. The world is vanilla-format and survives a
+    # loader swap as long as no mod added custom blocks/items to it.
+    type: FABRIC
     version: "26.3"
     motd: "schober.dev vanilla"
     maxPlayers: 15
@@ -52,40 +53,38 @@ minecraft:
     #
     #   ?         optional: with no compatible build, warn and boot anyway
     #             instead of failing the whole startup.
-    #   fabric:   needed for mods not tagged with the quilt loader, or the
-    #             Modrinth lookup returns nothing at all.
     #   :version  pinned by version NUMBER, not ID: an ID overrides the loader
     #             and Minecraft compatibility checks, a number does not.
-    # Lithium is tagged fabric+quilt and resolves on its own. FerriteCore is
-    # tagged fabric ONLY, so a quilt-filtered lookup returns nothing for it --
-    # hence the explicit `fabric:` prefix, which overrides the loader filter.
-    # Its 26.3 tag is still the unproven one: published 2026-03-24 (the 26.1
-    # release day) while declaring 26.1-26.3, so it is a forward declaration
-    # rather than a build tested against 26.3. The `?` only covers a failed
-    # lookup, not a runtime failure -- if the server misbehaves, drop this entry.
+    # All mods resolve against the fabric loader natively -- no prefixes
+    # needed under TYPE=FABRIC. FerriteCore's 26.3 tag is an unproven forward
+    # declaration (published on the 26.1 release day while declaring 26.1-
+    # 26.3); the `?` covers only a failed lookup, not a runtime failure, so
+    # drop the entry if the server misbehaves. Snow Under Trees stays out:
+    # both variants call chunk-future APIs that Moonrise's rewritten chunk
+    # system rejects (crash on join).
     # Literal block on purpose: the itzg image accepts MODRINTH_PROJECTS as a
     # comma OR newline separated list, so one entry per line works and keeps
     # this list easy to extend. NOTE: comments are NOT allowed inside the
     # block -- every line, including `#` lines, is passed to the image.
     #
-    # Grouping (plain text only, keep in sync when editing):
-    #   Quilt-tagged   lithium, tree-harvester, jade, snow-under-trees
-    #   Fabric-only    ferrite-core, appleskin, moonrise-opt, clumps
-    #
     #   No 26.3 build  lazydfu, modernfix -> `?` makes the lookup warn and
     #                  skip (checked 2026-10). LazyDFU is redundant anyway:
     #                  DFU is lazy in vanilla since 1.19.4.
+    #   Retest         xaeros-world-map threw unknown-registry-key sync
+    #                  errors under Quilt; re-testing under Fabric. Drop it
+    #                  again if they reappear.
     #   Datapacks      veinminer, veinminer-enchantment (needs veinminer)
     modrinthProjects: |
       lithium?:mc26.3-0.26.2-fabric
+      ferrite-core?:9.0.0-fabric
+      moonrise-opt:1.2.0+61c1328
+      clumps:26.3.2
+      lazydfu?
+      modernfix?
       tree-harvester
+      appleskin:3.0.10+mc26.3
       jade
-      fabric:ferrite-core?:9.0.0-fabric
-      fabric:appleskin:3.0.10+mc26.3
-      fabric:moonrise-opt:1.2.0+61c1328
-      fabric:clumps:26.3.2
-      fabric:lazydfu?
-      fabric:modernfix?
+      xaeros-world-map
       datapack:veinminer
       datapack:veinminer-enchantment
 
