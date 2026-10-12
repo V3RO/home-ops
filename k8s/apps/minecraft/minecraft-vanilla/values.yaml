@@ -40,6 +40,10 @@ minecraft:
     extraEnv:
       - name: MODRINTH_PROJECTS_DEFAULT_VERSION_TYPE
         value: release
+      # tree-harvester (and friends) refuse to run without Collective, and the
+      # default download mode is `none`.
+      - name: MODRINTH_DOWNLOAD_DEPENDENCIES
+        value: required
 
   mods:
     # Performance mods, installed at startup by the itzg image from Modrinth.
@@ -59,7 +63,33 @@ minecraft:
     # release day) while declaring 26.1-26.3, so it is a forward declaration
     # rather than a build tested against 26.3. The `?` only covers a failed
     # lookup, not a runtime failure -- if the server misbehaves, drop this entry.
-    modrinthProjects: "lithium?:mc26.3-0.26.2-fabric,fabric:ferrite-core?:9.0.0-fabric"
+    # Literal block on purpose: the itzg image accepts MODRINTH_PROJECTS as a
+    # comma OR newline separated list, so one entry per line works and keeps
+    # this list easy to extend. NOTE: comments are NOT allowed inside the
+    # block -- every line, including `#` lines, is passed to the image.
+    #
+    # Grouping (plain text only, keep in sync when editing):
+    #   Quilt-tagged   lithium, xaeros-world-map, tree-harvester, jade
+    #   Fabric-only    ferrite-core, appleskin, moonrise-opt,
+    #                  snow-under-trees-remastered, clumps
+    #   No 26.3 build  lazydfu, modernfix -> `?` makes the lookup warn and
+    #                  skip (checked 2026-10). LazyDFU is redundant anyway:
+    #                  DFU is lazy in vanilla since 1.19.4.
+    #   Datapacks      veinminer, veinminer-enchantment (needs veinminer)
+    modrinthProjects: |
+      lithium?:mc26.3-0.26.2-fabric
+      xaeros-world-map
+      tree-harvester
+      jade
+      fabric:ferrite-core?:9.0.0-fabric
+      fabric:appleskin:3.0.10+mc26.3
+      fabric:moonrise-opt:1.2.0+61c1328
+      fabric:snow-under-trees-remastered:2.7.6+26.3
+      fabric:clumps:26.3.2
+      fabric:lazydfu?
+      fabric:modernfix?
+      datapack:veinminer
+      datapack:veinminer-enchantment
 
   jvm:
     memory: 6G
