@@ -51,6 +51,23 @@ immich:
           main:
             env:
               NODE_EXTRA_CA_CERTS: /etc/ssl/certs/ca-certificates.crt
+            resources:
+              requests:
+                cpu: "1"
+                memory: 10Gi
+              limits:
+                memory: 10Gi
+            probes:
+              liveness:
+                spec:
+                  timeoutSeconds: 10
+                  failureThreshold: 10
+              readiness:
+                spec:
+                  timeoutSeconds: 10
+              startup:
+                spec:
+                  timeoutSeconds: 10
     persistence:
       ca-bundle:
         enabled: true
