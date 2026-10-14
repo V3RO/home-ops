@@ -599,7 +599,8 @@
           "expr": "minecraft_play_time_ticks_total / 20",
           "legendFormat": "{{player}}",
           "instant": true,
-          "range": false
+          "range": false,
+          "format": "table"
         }
       ],
       "fieldConfig": {
@@ -611,7 +612,7 @@
       "options": {
         "sortBy": [
           {
-            "displayName": "Value",
+            "displayName": "Playtime",
             "desc": true
           }
         ]
@@ -631,6 +632,7 @@
               "service_name": true
             },
             "renameByName": {
+              "player": "Player",
               "Value": "Playtime"
             }
           }
@@ -752,7 +754,14 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "percentunit"
+          "unit": "percentunit",
+          "min": 0,
+          "softMax": 1,
+          "noValue": "0",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 60
+          }
         },
         "overrides": []
       },
@@ -786,7 +795,13 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "lengthm"
+          "unit": "lengthm",
+          "min": 0,
+          "noValue": "0",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 60
+          }
         },
         "overrides": []
       },
@@ -819,7 +834,13 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "short"
+          "unit": "short",
+          "min": 0,
+          "noValue": "0",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 60
+          }
         },
         "overrides": []
       },
@@ -895,7 +916,13 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "short"
+          "unit": "short",
+          "min": 0,
+          "noValue": "0",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 60
+          }
         },
         "overrides": []
       },
