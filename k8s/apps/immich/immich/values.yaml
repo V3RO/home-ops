@@ -128,7 +128,7 @@ persistence:
   immich-library:
     enabled: true
     accessMode: ReadWriteMany
-    size: 100Gi
+    size: 500Gi
     storageClass: truenas-nfs-media
   immich-ml-cache:
     enabled: true
