@@ -111,6 +111,14 @@ spec:
               editable: true
               options:
                 path: /var/lib/grafana/dashboards/istio
+            - name: 'kubernetes'
+              orgId: 1
+              folder: 'Kubernetes'
+              type: file
+              disableDeletion: false
+              editable: true
+              options:
+                path: /var/lib/grafana/dashboards/kubernetes
             - name: 'minecraft'
               orgId: 1
               folder: 'Minecraft'
@@ -124,6 +132,31 @@ spec:
         minecraft: grafana-dashboard-minecraft
 
       dashboards:
+        kubernetes:
+          k8s-system-api-server:
+            gnetId: 15761
+            revision: 21
+            datasource: Prometheus
+          k8s-system-coredns:
+            gnetId: 15762
+            revision: 22
+            datasource: Prometheus
+          k8s-views-global:
+            gnetId: 15757
+            revision: 43
+            datasource: Prometheus
+          k8s-views-namespaces:
+            gnetId: 15758
+            revision: 46
+            datasource: Prometheus
+          k8s-views-nodes:
+            gnetId: 15759
+            revision: 40
+            datasource: Prometheus
+          k8s-views-pods:
+            gnetId: 15760
+            revision: 41
+            datasource: Prometheus
         istio:
           istio-mesh:
             gnetId: 7639
