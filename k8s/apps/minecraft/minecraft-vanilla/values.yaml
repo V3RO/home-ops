@@ -87,6 +87,7 @@ minecraft:
       xaeros-world-map
       datapack:veinminer
       datapack:veinminer-enchantment
+      
 
   jvm:
     initMemory: 6G
@@ -159,3 +160,54 @@ minecraft:
       - secretKey: rcon-password
         remoteRef:
           key: minecraft-rcon-secret
+
+minecraft-exporter:
+  fullnameOverride: minecraft-vanilla-exporter
+  options:
+    - --mc.rcon-address=minecraft-vanilla:25575
+    - --mc.world=/data/world
+    - --mc.name-source=mojang
+    - --mc.mod-server-stats=fabric
+  extraEnv:
+    - name: MC_RCON_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: minecraft-vanilla-rcon
+          key: rcon-password
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9150"
+    prometheus.io/path: /metrics
+  # Match the server's UID/GID so the world files are readable.
+  podSecurityContext:
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+  securityContext:
+    runAsUser: 1000
+    runAsGroup: 1000
+  # The world PVC is ReadWriteOnce hostpath, so the exporter must run on the
+  # server's node to mount it.
+  affinity:
+    podAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - topologyKey: kubernetes.io/hostname
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/instance: minecraft-vanilla
+              app.kubernetes.io/component: server
+  extraVolumes:
+    - name: data
+      persistentVolumeClaim:
+        claimName: minecraft-vanilla
+        readOnly: true
+  extraVolumeMounts:
+    - name: data
+      mountPath: /data
+      readOnly: true
+  resources:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+    limits:
+      memory: 256Mi

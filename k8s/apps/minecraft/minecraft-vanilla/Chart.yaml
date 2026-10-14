@@ -7,3 +7,6 @@ dependencies:
   - name: minecraft
     version: 1.5.5
     repository: oci://ghcr.io/helmforgedev/helm
+  - name: minecraft-exporter
+    version: 0.16.0
+    repository: oci://ghcr.io/dirien/charts
