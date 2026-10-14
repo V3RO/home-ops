@@ -16,7 +16,9 @@ spec:
       sectionName: {{ . }}
       {{- end }}
   rules:
-    - backendRefs:
+    - timeouts:
+        request: {{ .Values.app.requestTimeout | default "0s" | quote }}
+      backendRefs:
         - group: ""
           kind: Service
           name: {{ .Values.app.backendServiceName }}
