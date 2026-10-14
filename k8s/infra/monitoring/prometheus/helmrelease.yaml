@@ -52,6 +52,13 @@ spec:
         retention: 15d
         retentionSize: 7GB
 
+        # Alloy scrapes prometheus.io/scrape-annotated pods and remote-writes
+        # them to /api/v1/write; without the receiver those writes get a 404
+        # and the data is dropped.
+        extraFlags:
+          - web.enable-lifecycle
+          - web.enable-remote-write-receiver
+
       # Disable alertmanager HA
       alertmanager:
         enabled: false
