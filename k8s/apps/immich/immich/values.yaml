@@ -5,6 +5,8 @@ immich:
     main:
       containers:
         main:
+          image:
+            tag: v3.3.3
           env:
             IMMICH_ALLOW_SETUP: false
             DB_HOSTNAME: immich-postgres-rw.immich.svc.cluster.local
@@ -70,6 +72,7 @@ immich:
               tag: v2.6.3-openvino
             env:
               MACHINE_LEARNING_WORKER_TIMEOUT: "300"
+              MACHINE_LEARNING_MODEL_REVISION: "v2"
             resources:
               limits:
                 gpu.intel.com/i915: "1"
