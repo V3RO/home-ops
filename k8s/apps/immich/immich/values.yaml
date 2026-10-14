@@ -79,10 +79,7 @@ immich:
     persistence:
       cache:
         enabled: true
-        size: 5Gi
         type: persistentVolumeClaim
-        accessMode: ReadWriteOnce
-        storageClass: longhorn
         existingClaim: immich-ml-cache
       ca-bundle:
         enabled: true
