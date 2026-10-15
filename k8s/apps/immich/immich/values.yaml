@@ -53,15 +53,15 @@ immich:
               NODE_EXTRA_CA_CERTS: /etc/ssl/certs/ca-certificates.crt
             resources:
               requests:
-                cpu: "1"
-                memory: 10Gi
+                cpu: 500m
+                memory: 6Gi
               limits:
-                memory: 10Gi
+                memory: 6Gi
             probes:
               liveness:
                 spec:
                   timeoutSeconds: 10
-                  failureThreshold: 10
+                  failureThreshold: 6
               readiness:
                 spec:
                   timeoutSeconds: 10
@@ -91,8 +91,20 @@ immich:
               MACHINE_LEARNING_WORKER_TIMEOUT: "300"
               MACHINE_LEARNING_MODEL_REVISION: "v2"
             resources:
+              requests:
+                cpu: 500m
+                memory: 4Gi
               limits:
+                memory: 4Gi
                 gpu.intel.com/i915: "1"
+            probes:
+              liveness:
+                spec:
+                  timeoutSeconds: 10
+                  failureThreshold: 6
+              readiness:
+                spec:
+                  timeoutSeconds: 10
         pod:
           nodeSelector:
             intel.feature.node.kubernetes.io/gpu: "true"
