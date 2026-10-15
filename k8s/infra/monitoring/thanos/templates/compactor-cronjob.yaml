@@ -1,0 +1,66 @@
+{{- with .Values.compactorCronJob }}
+{{- if .enabled }}
+# One-shot Thanos compactor (no --wait): compacts, downsamples and applies
+# retention once per run, instead of a continuously running StatefulSet.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: thanos-compactor
+  namespace: {{ $.Release.Namespace }}
+spec:
+  schedule: {{ .schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: {{ .activeDeadlineSeconds }}
+      ttlSecondsAfterFinished: 604800
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext:
+            fsGroup: 65534
+            runAsGroup: 65532
+            runAsNonRoot: true
+            runAsUser: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: compactor
+              image: {{ .image }}
+              args:
+                - compact
+                - --data-dir=/var/thanos/compact
+                - --objstore.config-file=/etc/thanos/objstore.yml
+                - --retention.resolution-raw={{ .retention.raw }}
+                - --retention.resolution-5m={{ .retention.fiveMinute }}
+                - --retention.resolution-1h={{ .retention.oneHour }}
+                - --log.format=logfmt
+                - --http-address=0.0.0.0:10902
+              ports:
+                - name: http
+                  containerPort: 10902
+              resources:
+                {{- toYaml .resources | nindent 16 }}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+              volumeMounts:
+                - name: data
+                  mountPath: /var/thanos/compact
+                - name: objstore
+                  mountPath: /etc/thanos
+                  readOnly: true
+          volumes:
+            - name: data
+              emptyDir:
+                sizeLimit: {{ .scratchSize }}
+            - name: objstore
+              secret:
+                secretName: thanos-objstore
+{{- end }}
+{{- end }}

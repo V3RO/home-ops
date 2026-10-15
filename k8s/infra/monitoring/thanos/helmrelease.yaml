@@ -72,7 +72,8 @@ spec:
           limits:
             memory: 512Mi
 
-      # Compactor is intentionally not enabled yet (planned as a daily CronJob).
+      # The chart's compactor is always-on (--wait); the CronJob below
+      # (templates/compactor-cronjob.yaml) replaces it with a daily one-shot.
       compactor:
         enabled: false
       queryFrontend:
@@ -81,3 +82,22 @@ spec:
         enabled: false
       ruler:
         enabled: false
+
+    compactorCronJob:
+      enabled: true
+      image: quay.io/thanos/thanos:v0.42.4
+      schedule: "0 3 * * *"
+      activeDeadlineSeconds: 7200
+      scratchSize: 10Gi
+      # Downsampling to 5m starts for blocks older than 40h and to 1h older
+      # than 10d, so raw retention must stay above 40h and 5m above 10d.
+      retention:
+        raw: 7d
+        fiveMinute: 30d
+        oneHour: 90d
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          memory: 1Gi
