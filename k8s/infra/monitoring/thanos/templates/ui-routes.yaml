@@ -1,0 +1,79 @@
+{{- with .Values.ui }}
+{{- $ui := . }}
+{{- range .routes }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: httproute-{{ .name }}
+  namespace: {{ $.Release.Namespace }}
+spec:
+  hostnames:
+    - {{ .host }}
+  parentRefs:
+    - kind: Gateway
+      name: {{ $ui.gateway.name }}
+      namespace: {{ $ui.gateway.namespace }}
+      sectionName: {{ $ui.gateway.sectionName }}
+  rules:
+    - name: auth-callback
+      backendRefs:
+        - group: ""
+          kind: Service
+          name: {{ $ui.authentik.outpostService.name }}
+          namespace: {{ $ui.authentik.outpostService.namespace }}
+          port: {{ $ui.authentik.outpostService.port }}
+          weight: 1
+      matches:
+        - path:
+            type: PathPrefix
+            value: /outpost.goauthentik.io
+    - name: app
+      backendRefs:
+        - group: ""
+          kind: Service
+          name: {{ .service }}
+          port: {{ .port }}
+          weight: 1
+      matches:
+        - path:
+            type: PathPrefix
+            value: /
+---
+apiVersion: gateway.kgateway.dev/v1alpha1
+kind: GatewayExtension
+metadata:
+  name: {{ .name }}-authentik
+  namespace: {{ $.Release.Namespace }}
+spec:
+  extAuth:
+    httpService:
+      backendRef:
+        name: {{ $ui.authentik.outpostService.name }}
+        namespace: {{ $ui.authentik.outpostService.namespace }}
+        port: {{ $ui.authentik.outpostService.port }}
+      pathPrefix: {{ $ui.authentik.pathPrefix }}
+      authorizationResponse:
+        headersToBackend:
+          {{- toYaml $ui.authentik.headersToBackend | nindent 10 }}
+        headersToClientOnSuccess:
+          {{- toYaml $ui.authentik.headersToClientOnSuccess | nindent 10 }}
+    headersToForward:
+      {{- toYaml $ui.authentik.headersToForward | nindent 6 }}
+---
+apiVersion: gateway.kgateway.dev/v1alpha1
+kind: TrafficPolicy
+metadata:
+  name: {{ .name }}-authz
+  namespace: {{ $.Release.Namespace }}
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: httproute-{{ .name }}
+      sectionName: app
+  extAuth:
+    extensionRef:
+      name: {{ .name }}-authentik
+---
+{{- end }}
+{{- end }}

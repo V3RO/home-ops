@@ -161,6 +161,8 @@ spec:
           - blueprint-qui
           - blueprint-shoko
           - blueprint-valkey-admin
+          - blueprint-thanos
+          - blueprint-thanos-bucket
           - blueprint-proxy-outpost
           - blueprint-users
           - blueprint-mfa
@@ -312,6 +314,28 @@ spec:
               slug: valkey-admin
               metaLaunchUrl: https://valkey-admin.schober.dev
               icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/valkey.svg
+            access: admin
+          - name: thanos
+            provider:
+              name: Thanos
+              externalHost: https://thanos.schober.dev
+              mode: forward_single
+            application:
+              name: Thanos
+              slug: thanos
+              metaLaunchUrl: https://thanos.schober.dev
+              icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/thanos.svg
+            access: admin
+          - name: thanos-bucket
+            provider:
+              name: Thanos Bucket
+              externalHost: https://thanos-bucket.schober.dev
+              mode: forward_single
+            application:
+              name: Thanos Bucket
+              slug: thanos-bucket
+              metaLaunchUrl: https://thanos-bucket.schober.dev
+              icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/thanos.svg
             access: admin
           # forward_single, like the other media UIs. Shokofin reaches Shoko over
           # the in-cluster Service rather than this hostname, and proxies Shoko

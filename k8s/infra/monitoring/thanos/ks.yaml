@@ -20,6 +20,9 @@ spec:
     # Querier connects to the sidecar; thanos-objstore Secret lives in the prometheus chart
     - name: prometheus
     - name: versitygw
+    # HTTPRoutes target the internal Gateway; GatewayExtension/TrafficPolicy CRDs
+    - name: gateway
+    - name: kgateway
   healthChecks:
     - apiVersion: helm.toolkit.fluxcd.io/v2
       kind: HelmRelease
