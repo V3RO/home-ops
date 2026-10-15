@@ -34,10 +34,10 @@ spec:
         persistentVolume:
           enabled: true
           storageClass: longhorn
-          size: 10Gi
+          size: 20Gi
 
         # The chart default is retention: 15d, which is wildly out of proportion
-        # to this 10Gi volume: the actual ingest rate (explicit scrape jobs plus
+        # to this 20Gi volume: the actual ingest rate (explicit scrape jobs plus
         # Alloy's remote-write of annotated pods) is ~12GB/day, so 15d of data
         # would need on the order of 180GB. That mismatch jammed the volume to
         # 100% and wedged Prometheus in an unrecoverable crash loop, because
@@ -49,8 +49,70 @@ spec:
         # head chunks that retention.size does not account for (~1-1.5GB here).
         # retention.time stays as a belt-and-braces upper bound on age, but at
         # this ingest rate the size limit is what will always fire first.
-        retention: 15d
-        retentionSize: 7GB
+        #
+        # With Thanos, this is only the local window: the sidecar uploads each
+        # finished 2h block to S3 and Thanos serves everything older.
+        retention: 5d
+        retentionSize: 15GB
+
+        # Thanos requires external labels (cluster is also what the dotdc
+        # dashboards select on). Applied to uploaded blocks and exposed to the
+        # Thanos Querier; they do not change local queries.
+        global:
+          external_labels:
+            cluster: homelab
+
+        extraArgs:
+          # Fixed 2h blocks: the sidecar uploads only uncompacted blocks, and
+          # compaction is the Thanos Compactor's job.
+          storage.tsdb.min-block-duration: 2h
+          storage.tsdb.max-block-duration: 2h
+
+        extraVolumes:
+          - name: thanos-objstore
+            secret:
+              secretName: thanos-objstore
+
+        sidecarContainers:
+          thanos-sidecar:
+            image: quay.io/thanos/thanos:v0.42.4
+            args:
+              - sidecar
+              - --tsdb.path=/data
+              - --prometheus.url=http://localhost:9090
+              - --objstore.config-file=/etc/thanos/objstore.yml
+              - --grpc-address=0.0.0.0:10901
+              - --http-address=0.0.0.0:10902
+            ports:
+              - name: thanos-grpc
+                containerPort: 10901
+              - name: thanos-http
+                containerPort: 10902
+            volumeMounts:
+              - name: storage-volume
+                mountPath: /data
+              - name: thanos-objstore
+                mountPath: /etc/thanos
+                readOnly: true
+            readinessProbe:
+              httpGet:
+                path: /-/ready
+                port: thanos-http
+            livenessProbe:
+              httpGet:
+                path: /-/healthy
+                port: thanos-http
+            resources:
+              requests:
+                cpu: 25m
+                memory: 64Mi
+              limits:
+                memory: 256Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop: [ALL]
 
         # Alloy scrapes prometheus.io/scrape-annotated pods and remote-writes
         # them to /api/v1/write; without the receiver those writes get a 404
@@ -117,6 +179,13 @@ spec:
                 - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
                   action: keep
                   regex: default;kubernetes;https
+              # The apiserver exposes ~260k series, mostly histogram buckets that
+              # no dashboard uses (they only need _count/_sum). Dropping them
+              # cuts ingest by well over half.
+              metric_relabel_configs:
+                - source_labels: [__name__]
+                  action: drop
+                  regex: 'apiserver_.+_bucket|etcd_request_duration_seconds_bucket|informer_processing_latency_seconds_bucket|kubernetes_feature_enabled'
 
             # Kubelet's own metrics, proxied through the apiserver so we don't
             # depend on the kubelet serving cert being valid for the node IP.
@@ -129,7 +198,7 @@ spec:
               bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
               relabel_configs:
                 - action: labelmap
-                  regex: __meta_kubernetes_node_label_(.+)
+                  regex: __meta_kubernetes_node_label_(kubernetes_io_hostname|kubernetes_io_arch|kubernetes_io_os|topology_kubernetes_io_(region|zone))
                 - target_label: __address__
                   replacement: kubernetes.default.svc:443
                 - source_labels: [__meta_kubernetes_node_name]
@@ -147,7 +216,7 @@ spec:
               bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
               relabel_configs:
                 - action: labelmap
-                  regex: __meta_kubernetes_node_label_(.+)
+                  regex: __meta_kubernetes_node_label_(kubernetes_io_hostname|kubernetes_io_arch|kubernetes_io_os|topology_kubernetes_io_(region|zone))
                 - target_label: __address__
                   replacement: kubernetes.default.svc:443
                 - source_labels: [__meta_kubernetes_node_name]
@@ -264,6 +333,23 @@ spec:
                   target_label: __address__
                 - source_labels: [__meta_kubernetes_node_name]
                   target_label: node
+
+            # CoreDNS metrics (k8s-system-coredns dashboard), via the kube-dns
+            # service's metrics port.
+            - job_name: 'coredns'
+              kubernetes_sd_configs:
+                - role: endpoints
+                  namespaces:
+                    names:
+                      - kube-system
+              relabel_configs:
+                - source_labels: [__meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+                  action: keep
+                  regex: kube-dns;metrics
+                - source_labels: [__meta_kubernetes_pod_name]
+                  target_label: pod
+                - source_labels: [__meta_kubernetes_namespace]
+                  target_label: namespace
 
             # --- Istio ---
             - job_name: 'istiod'

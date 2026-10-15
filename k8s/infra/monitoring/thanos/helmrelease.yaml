@@ -1,0 +1,83 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: thanos
+  namespace: flux-system
+spec:
+  interval: 5m
+  timeout: 10m
+  chart:
+    spec:
+      chart: ./k8s/infra/monitoring/thanos
+      sourceRef:
+        kind: GitRepository
+        name: flux-system
+        namespace: flux-system
+      reconcileStrategy: Revision
+  releaseName: thanos
+  targetNamespace: monitoring
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+  dependsOn:
+    - name: prometheus
+      namespace: flux-system
+  values:
+    thanos:
+      global:
+        # No Prometheus Operator in this cluster, so no PrometheusRule CRD.
+        thanosRules:
+          enabled: false
+
+        # Secret is created by the ExternalSecret in the prometheus chart
+        # (k8s/infra/monitoring/prometheus/templates/thanos-objstore.yaml).
+        objstore:
+          createSecret: false
+          secretName: thanos-objstore
+          secretKey: objstore.yml
+
+      bucket:
+        enabled: false
+
+      # Prometheus sidecar (live and recent data). Historical data comes from
+      # the store gateway, which the chart wires up automatically.
+      query:
+        enabled: true
+        replicaCount: 1
+        endpoints:
+          static:
+            - prometheus-thanos-sidecar.monitoring.svc.cluster.local:10901
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            memory: 512Mi
+
+      storegateway:
+        enabled: true
+        replicaCount: 1
+        persistence:
+          enabled: true
+          storageClass: longhorn
+          size: 5Gi
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            memory: 512Mi
+
+      # Compactor is intentionally not enabled yet (planned as a daily CronJob).
+      compactor:
+        enabled: false
+      queryFrontend:
+        enabled: false
+      receive:
+        enabled: false
+      ruler:
+        enabled: false

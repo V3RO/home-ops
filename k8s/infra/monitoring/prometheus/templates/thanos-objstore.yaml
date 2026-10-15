@@ -1,0 +1,52 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: thanos-objstore
+  namespace: {{ .Release.Namespace }}
+spec:
+  secretStoreRef:
+    name: bitwarden-app-secrets
+    kind: ClusterSecretStore
+  target:
+    name: thanos-objstore
+    template:
+      engineVersion: v2
+      data:
+        objstore.yml: |
+          type: S3
+          config:
+            bucket: thanos
+            endpoint: versitygw.versitygw.svc.cluster.local:7070
+            insecure: true
+            region: homelab
+            bucket_lookup_type: path
+            access_key: "{{ `{{ .access_key }}` }}"
+            secret_key: "{{ `{{ .secret_key }}` }}"
+  data:
+    # Written by the VersityGW chart's PushSecret for the `thanos` data client
+    # (k8s/infra/versitygw/versitygw/templates/data-client-credentials.yaml).
+    - secretKey: access_key
+      remoteRef:
+        key: thanos-id
+    - secretKey: secret_key
+      remoteRef:
+        key: thanos-secret
+---
+# The Thanos Querier reaches the sidecar through this Service.
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus-thanos-sidecar
+  namespace: {{ .Release.Namespace }}
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/component: server
+  ports:
+    - name: grpc
+      port: 10901
+      targetPort: thanos-grpc
+    - name: http
+      port: 10902
+      targetPort: thanos-http

@@ -60,6 +60,8 @@ spec:
       # with backup.s3.createBucketIfNotExists: false.
       - name: minecraft
         bucket: minecraft-backups
+      - name: thanos
+        bucket: thanos
 
     versitygw:
       image:

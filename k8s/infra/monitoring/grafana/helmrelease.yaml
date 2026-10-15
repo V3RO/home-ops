@@ -26,6 +26,8 @@ spec:
   dependsOn:
     - name: prometheus
       namespace: flux-system
+    - name: thanos
+      namespace: flux-system
   values:
     postgres:
       restore: false
@@ -86,9 +88,13 @@ spec:
           datasources:
             - name: Prometheus
               type: prometheus
-              url: http://prometheus-server.monitoring.svc.cluster.local
+              url: http://thanos-query.monitoring.svc.cluster.local:9090
               access: proxy
               isDefault: true
+            - name: Prometheus (direct)
+              type: prometheus
+              url: http://prometheus-server.monitoring.svc.cluster.local
+              access: proxy
             - name: Loki
               type: loki
               url: http://loki.monitoring.svc.cluster.local:3100

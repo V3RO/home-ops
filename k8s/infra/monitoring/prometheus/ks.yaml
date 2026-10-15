@@ -19,6 +19,10 @@ spec:
     - name: longhorn
     # HTTPRoute targets the internal Gateway
     - name: gateway
+    # Thanos sidecar uploads to the versitygw `thanos` bucket
+    - name: versitygw
+    # thanos-objstore ExternalSecret
+    - name: external-secrets-config
   healthChecks:
     - apiVersion: helm.toolkit.fluxcd.io/v2
       kind: HelmRelease

@@ -24,6 +24,8 @@ spec:
     - name: external-secrets-config
     # HTTPRoute targets the internal Gateway
     - name: gateway
+    # default datasource is the Thanos Querier
+    - name: thanos
   healthChecks:
     - apiVersion: helm.toolkit.fluxcd.io/v2
       kind: HelmRelease

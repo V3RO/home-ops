@@ -7,3 +7,4 @@ resources:
   - ./loki/ks.yaml
   - ./prometheus/ks.yaml
   - ./tempo/ks.yaml
+  - ./thanos/ks.yaml

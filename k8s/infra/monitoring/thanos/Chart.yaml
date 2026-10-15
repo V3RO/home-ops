@@ -1,0 +1,9 @@
+apiVersion: v2
+name: thanos
+version: 0.1.0
+description: "Thanos query layer and long-term storage for Prometheus"
+type: application
+dependencies:
+  - name: thanos
+    repository: oci://ghcr.io/thanos-community/helm-charts
+    version: 0.47.2
