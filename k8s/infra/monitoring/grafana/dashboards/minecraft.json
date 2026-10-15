@@ -134,46 +134,6 @@
       }
     },
     {
-      "id": 3,
-      "type": "stat",
-      "title": "Max players",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "gridPos": {
-        "x": 8,
-        "y": 0,
-        "w": 4,
-        "h": 4
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "expr": "max(minecraft_status_players_max_count)",
-          "legendFormat": "",
-          "instant": true,
-          "range": false
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ]
-        },
-        "colorMode": "value"
-      }
-    },
-    {
       "id": 4,
       "type": "stat",
       "title": "Ping response",
@@ -182,9 +142,9 @@
         "uid": "${datasource}"
       },
       "gridPos": {
-        "x": 12,
+        "x": 8,
         "y": 0,
-        "w": 4,
+        "w": 5,
         "h": 4
       },
       "targets": [
@@ -241,9 +201,9 @@
         "uid": "${datasource}"
       },
       "gridPos": {
-        "x": 16,
+        "x": 13,
         "y": 0,
-        "w": 4,
+        "w": 6,
         "h": 4
       },
       "targets": [
@@ -281,9 +241,9 @@
         "uid": "${datasource}"
       },
       "gridPos": {
-        "x": 20,
+        "x": 19,
         "y": 0,
-        "w": 4,
+        "w": 5,
         "h": 4
       },
       "targets": [
@@ -350,15 +310,6 @@
           },
           "expr": "max(minecraft_status_players_online_count)",
           "legendFormat": "online"
-        },
-        {
-          "refId": "B",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "expr": "max(minecraft_status_players_max_count)",
-          "legendFormat": "max"
         }
       ],
       "fieldConfig": {
@@ -958,6 +909,138 @@
       "fieldConfig": {
         "defaults": {
           "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      }
+    },
+    {
+      "id": 24,
+      "type": "bargauge",
+      "title": "Fish caught",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 63,
+        "w": 8,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "minecraft_fish_caught_total",
+          "legendFormat": "{{player}}",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      }
+    },
+    {
+      "id": 25,
+      "type": "bargauge",
+      "title": "Items enchanted",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 63,
+        "w": 8,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "minecraft_items_enchanted_total",
+          "legendFormat": "{{player}}",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      }
+    },
+    {
+      "id": 26,
+      "type": "bargauge",
+      "title": "Villager trades",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 63,
+        "w": 8,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "minecraft_traded_with_villagers_total",
+          "legendFormat": "{{player}}",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
         },
         "overrides": []
       },
