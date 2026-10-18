@@ -70,6 +70,9 @@ minecraft:
     #   No 26.3 build  lazydfu, modernfix -> `?` makes the lookup warn and
     #                  skip (checked 2026-10). LazyDFU is redundant anyway:
     #                  DFU is lazy in vanilla since 1.19.4.
+    #   Alpha only     slabbed is pinned to its 26.3 alpha, since the
+    #                  default version type (release) would skip it. Unpin
+    #                  once a 26.3 release exists.
     #   Retest         xaeros-world-map threw unknown-registry-key sync
     #                  errors under Quilt; re-testing under Fabric. Drop it
     #                  again if they reappear.
@@ -84,6 +87,12 @@ minecraft:
       tree-harvester
       appleskin:3.0.10+mc26.3
       jade
+      slabbed?:0.6.4-alpha+26.2-26.3
+      blackwolf-library
+      more-beautiful-slabs
+      more-beautiful-vertical-slabs
+      more-beautiful-stairs
+      more-beautiful-walls
       datapack:veinminer
       datapack:veinminer-enchantment
       
