@@ -166,6 +166,7 @@ spec:
           - blueprint-proxy-outpost
           - blueprint-users
           - blueprint-mfa
+          - blueprint-session
           - blueprint-disable-registration
 
         users:

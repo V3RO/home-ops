@@ -1,0 +1,36 @@
+---
+# Sets the lifetime of interactive logins.
+#
+# The packaged default-authentication-flow does not set `session_duration` on
+# `default-authentication-login`, so the model default `seconds=0` applies. That
+# makes the browser cookie a session cookie, but Django still computes the
+# server-side expiry from SESSION_COOKIE_AGE, which authentik derives from
+# AUTHENTIK_SESSIONS__UNAUTHENTICATED_AGE (default `days=1`). The database
+# session therefore dies after 24h even when the browser stays open.
+#
+# With an explicit duration, both the cookie and the session row get a real
+# expiry. `remember_me_offset` is added to the base duration when the user ticks
+# "Remember me on this device" (here 7 + 23 = 30 days). Set it to `seconds=0` to
+# hide the option.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: blueprint-session
+  namespace: {{ .Release.Namespace }}
+data:
+  session.yaml: |
+    # yaml-language-server: $schema=https://goauthentik.io/blueprints/schema.json
+    version: 1
+    metadata:
+      name: Session lifetime
+      labels:
+        blueprints.goauthentik.io/description: "Session lifetime for interactive logins"
+    entries:
+      - model: authentik_stages_user_login.userloginstage
+        id: default-login-lifetime
+        state: present
+        identifiers:
+          name: default-authentication-login
+        attrs:
+          session_duration: days=7
+          remember_me_offset: days=23
