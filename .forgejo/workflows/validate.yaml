@@ -71,18 +71,26 @@ jobs:
           set -euo pipefail
 
           if [ "${{ forgejo.event_name }}" = "pull_request" ]; then
-            base="${{ forgejo.event.pull_request.base.sha }}"
+            base_ref="${{ forgejo.event.pull_request.base.ref }}"
+            base_ref="${base_ref#refs/heads/}"
+            base_ref="${base_ref:-main}"
+
+            # The event's base SHA is not guaranteed to be present in the
+            # checkout. Fetch the base branch and diff against its merge base
+            # instead.
+            git fetch --no-tags origin \
+              "+refs/heads/${base_ref}:refs/remotes/origin/${base_ref}"
+            base="$(git merge-base "refs/remotes/origin/${base_ref}" HEAD)"
           else
             base="${{ forgejo.event.before }}"
-          fi
 
-          if [ -z "${base:-}" ] || [[ "$base" =~ ^0+$ ]]; then
-            base="$(git rev-list --max-parents=0 HEAD)"
+            # Force-pushed branches can reference a commit that is no longer
+            # reachable, so fall back to the previous commit if necessary.
+            if [ -z "${base:-}" ] || [[ "$base" =~ ^0+$ ]] \
+              || ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+              base="$(git rev-parse HEAD^ 2>/dev/null || git rev-list --max-parents=0 HEAD)"
+            fi
           fi
-
-          # Diff against the merge base so unrelated base-branch changes are
-          # not validated as part of a pull request.
-          base="$(git merge-base "$base" HEAD 2>/dev/null || printf '%s' "$base")"
 
           printf '%s\n' "$base" > /tmp/diff-base
           git diff --name-only "$base" HEAD > /tmp/changed-files
