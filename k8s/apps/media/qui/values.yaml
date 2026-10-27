@@ -1,7 +1,7 @@
 home-ops-app-chart:
   image:
     repository: ghcr.io/autobrr/qui
-    tag: v1.30.0
+    tag: v1.33.1
     pullPolicy: IfNotPresent
 
   strategy:
