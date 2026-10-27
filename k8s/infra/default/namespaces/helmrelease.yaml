@@ -83,6 +83,7 @@ spec:
           pod-security.kubernetes.io/enforce: privileged
       - name: adguard
       - name: actual
+      - name: affine
       - name: immich
       - name: netbird
       - name: media

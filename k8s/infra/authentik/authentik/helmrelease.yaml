@@ -90,6 +90,11 @@ spec:
               secretKeyRef:
                 name: authentik-secret
                 key: actualClientSecret
+          - name: AUTHENTIK_AFFINE_CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: authentik-secret
+                key: affineClientSecret
           - name: AUTHENTIK_IMMICH_CLIENT_SECRET
             valueFrom:
               secretKeyRef:
@@ -154,6 +159,7 @@ spec:
           - blueprint-forgejo
           - blueprint-adguard
           - blueprint-actual
+          - blueprint-affine
           - blueprint-immich
           - blueprint-kiali
           - blueprint-flux
@@ -450,6 +456,25 @@ spec:
               metaLaunchUrl: https://actual.schober.dev
               icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/actual-budget.svg
             access: user
+          - name: affine
+            provider:
+              kind: oauth2
+              name: AFFiNE
+              clientId: affine
+              clientSecretEnv: AUTHENTIK_AFFINE_CLIENT_SECRET
+              grantTypes:
+                - authorization_code
+                - refresh_token
+              includeClaimsInIdToken: true
+              redirectUris:
+                - url: https://affine.schober.dev/oauth/callback
+                  matchingMode: strict
+            application:
+              name: AFFiNE
+              slug: affine
+              metaLaunchUrl: https://affine.schober.dev
+              icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/affine.svg
+            access: user
           - name: immich
             provider:
               kind: oauth2
@@ -575,6 +600,7 @@ spec:
         zotClientSecret: zot-oidc-client-secret
         forgejoClientSecret: authentik-forgejo-client-secret
         actualClientSecret: authentik-actual-client-secret
+        affineClientSecret: authentik-affine-client-secret
         immichClientSecret: authentik-immich-client-secret
         kialiClientSecret: authentik-kiali-client-secret
         fluxClientSecret: authentik-flux-client-secret

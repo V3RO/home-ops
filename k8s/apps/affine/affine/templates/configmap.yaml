@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: affine-config-template
+  namespace: {{ .Release.Namespace }}
+data:
+  config.json.tpl: |
+    {
+      "$schema": "https://github.com/toeverything/AFFiNE/releases/latest/download/config.schema.json",
+      "server": {
+        "name": "AFFiNE",
+        "externalUrl": "https://affine.schober.dev",
+        "https": true,
+        "host": "affine.schober.dev"
+      },
+      "auth": {
+        "allowSignup": false,
+        "allowSignupForOauth": false,
+        "requireEmailVerification": false
+      },
+      "oauth": {
+        "providers": {
+          "oidc": {
+            "issuer": "https://auth.schober.dev/application/o/affine/",
+            "clientId": "affine",
+            "clientSecret": "${AFFINE_OIDC_CLIENT_SECRET}",
+            "args": {
+              "scope": "openid profile email",
+              "claim_id": "sub",
+              "claim_email": "email",
+              "claim_name": "name",
+              "claim_email_verified": "email_verified"
+            }
+          }
+        }
+      },
+      "indexer": {
+        "enabled": false
+      },
+      "copilot": {
+        "enabled": false
+      }
+    }

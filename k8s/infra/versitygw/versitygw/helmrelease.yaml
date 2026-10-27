@@ -38,6 +38,7 @@ spec:
     jobTTLSecondsAfterFinished: 604800  # 7d
 
     cnpgClients:
+      - affine
       - authentik
       - grafana
       - immich
