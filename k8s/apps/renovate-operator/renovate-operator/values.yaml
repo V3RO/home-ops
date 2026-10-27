@@ -1,0 +1,62 @@
+renovate-operator:
+  crd:
+    # Plain templates instead of Helm hooks so ArgoCD tracks and prunes the CRDs.
+    mode: template
+
+  route:
+    enabled: true
+    hostnames:
+      - renovate.schober.dev
+    parentRefs:
+      - group: gateway.networking.k8s.io
+        kind: Gateway
+        name: internal-gateway
+        namespace: istio-ingress-internal
+        sectionName: https
+
+  auth:
+    oidc:
+      enabled: true
+      issuerUrl: https://auth.schober.dev/application/o/renovate/
+      clientId: renovate
+      existingSecret: renovate-oidc
+      secretKey: client-secret
+      sessionSecretKey: session-secret
+      redirectScheme: https
+      additionalScopes:
+        - groups
+
+  authorization:
+    defaults:
+      adminGroups:
+        - homelab-admins
+
+  extraVolumes:
+    - name: ca-bundle
+      configMap:
+        name: ca-bundle
+  extraVolumeMounts:
+    - name: ca-bundle
+      mountPath: /etc/ssl/certs/ca-certificates.crt
+      subPath: ca-bundle.crt
+      readOnly: true
+
+externalSecret:
+  refreshInterval: 15m
+  secretStoreRef:
+    name: bitwarden-app-secrets
+    kind: ClusterSecretStore
+  keys:
+    forgejoToken: renovate-forgejo-token
+    githubToken: renovate-github-token
+    oidcClientSecret: authentik-renovate-client-secret
+    sessionSecret: renovate-session-secret
+
+renovateJob:
+  name: forgejo
+  # Runs hourly; each repo restricts when PRs are created via `schedule` in its renovate.json.
+  schedule: "0 * * * *"
+  endpoint: https://git.schober.dev/api/v1
+  image: ghcr.io/renovatebot/renovate:44.171.1
+  parallelism: 2
+  gitAuthor: "Renovate Bot <renovate-bot@schober.dev>"

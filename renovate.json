@@ -1,0 +1,26 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", ":dependencyDashboard"],
+  "timezone": "Europe/Vienna",
+  "schedule": ["* 0-6 * * *"],
+  "platformAutomerge": true,
+  "flux": {
+    "managerFilePatterns": ["/^k8s/.+\\.ya?ml$/"]
+  },
+  "helm-values": {
+    "managerFilePatterns": ["/^k8s/.+/values\\.ya?ml$/"]
+  },
+  "kubernetes": {
+    "managerFilePatterns": ["/^k8s/.+\\.ya?ml$/"]
+  },
+  "packageRules": [
+    {
+      "matchUpdateTypes": ["patch", "digest", "pin"],
+      "automerge": true
+    },
+    {
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
+    }
+  ]
+}

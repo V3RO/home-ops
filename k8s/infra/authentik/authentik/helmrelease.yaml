@@ -120,6 +120,11 @@ spec:
               secretKeyRef:
                 name: authentik-secret
                 key: quiClientSecret
+          - name: AUTHENTIK_RENOVATE_CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: authentik-secret
+                key: renovateClientSecret
           - name: AUTHENTIK_EMAIL__HOST
             valueFrom:
               secretKeyRef:
@@ -188,6 +193,7 @@ spec:
           - blueprint-mealie
           - blueprint-zot
           - blueprint-forgejo
+          - blueprint-renovate
           - blueprint-adguard
           - blueprint-actual
           - blueprint-affine
@@ -460,6 +466,22 @@ spec:
               metaLaunchUrl: https://git.schober.dev
               icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/forgejo.svg
             access: user
+          - name: renovate
+            provider:
+              kind: oauth2
+              name: Renovate
+              clientId: renovate
+              clientSecretEnv: AUTHENTIK_RENOVATE_CLIENT_SECRET
+              includeGroups: true
+              redirectUris:
+                - url: https://renovate.schober.dev/auth/callback
+                  matchingMode: strict
+            application:
+              name: Renovate
+              slug: renovate
+              metaLaunchUrl: https://renovate.schober.dev
+              icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/renovate.svg
+            access: admin
           - name: adguard
             provider:
               name: AdGuard Home
@@ -641,6 +663,7 @@ spec:
         fluxClientSecret: authentik-flux-client-secret
         netbirdClientSecret: authentik-netbird-client-secret
         quiClientSecret: authentik-qui-client-secret
+        renovateClientSecret: authentik-renovate-client-secret
         userPasswords:
           - username: V3RO
             bitwardenItem: authentik-user-v3ro-password

@@ -1,0 +1,35 @@
+{{- with .Values.renovateJob }}
+apiVersion: renovate-operator.mogenius.com/v1alpha1
+kind: RenovateJob
+metadata:
+  name: {{ .name }}
+  namespace: {{ $.Release.Namespace }}
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  schedule: {{ .schedule | quote }}
+  secretRef: renovate-secret
+  provider:
+    name: forgejo
+    endpoint: {{ .endpoint }}
+  image: {{ .image }}
+  parallelism: {{ .parallelism }}
+  extraEnv:
+    - name: RENOVATE_GIT_AUTHOR
+      value: {{ .gitAuthor | quote }}
+    - name: RENOVATE_ONBOARDING
+      value: "true"
+    - name: RENOVATE_REQUIRE_CONFIG
+      value: required
+    - name: NODE_EXTRA_CA_CERTS
+      value: /etc/ssl/certs/ca-bundle.crt
+  extraVolumes:
+    - name: ca-bundle
+      configMap:
+        name: ca-bundle
+  extraVolumeMounts:
+    - name: ca-bundle
+      mountPath: /etc/ssl/certs/ca-bundle.crt
+      subPath: ca-bundle.crt
+      readOnly: true
+{{- end }}

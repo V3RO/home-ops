@@ -68,6 +68,7 @@ spec:
       - name: homepage
       - name: paperless
       - name: zot
+      - name: renovate-operator
       - name: forgejo
         labels:
           pod-security.kubernetes.io/enforce: privileged

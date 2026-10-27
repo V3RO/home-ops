@@ -1,0 +1,9 @@
+apiVersion: v2
+name: renovate-operator
+description: "Renovate Operator running Renovate against Forgejo for homelab"
+type: application
+version: 0.1.0
+dependencies:
+  - name: renovate-operator
+    version: 6.5.1
+    repository: oci://ghcr.io/mogenius/helm-charts
