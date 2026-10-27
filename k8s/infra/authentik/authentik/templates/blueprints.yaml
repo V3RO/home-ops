@@ -231,6 +231,37 @@ data:
             groups = [group.name for group in user.groups.all()]
             return {"immich_role": "admin" if "homelab-admins" in groups else "user"}
       {{- end }}
+      {{- $emailVerified := or (default false .provider.assertEmailVerified) (default false .provider.emailVerifiedFromAttribute) }}
+      {{- if $emailVerified }}
+      # authentik >= 2025.10 returns email_verified: false from the default
+      # email scope. Some OIDC clients (AFFiNE) reject that. This provider-only
+      # mapping overrides the email scope.
+      #
+      # emailVerifiedFromAttribute reads the address recorded by the one-time
+      # verify-email flow. assertEmailVerified is the fallback assertion for
+      # providers whose addresses are verified outside authentik.
+      - model: authentik_providers_oauth2.scopemapping
+        id: {{ .name }}-scope-email-verified
+        identifiers:
+          name: {{ printf "%s email (verified)" .name | quote }}
+        attrs:
+          name: {{ printf "%s email (verified)" .name | quote }}
+          scope_name: email
+          expression: |
+            {{- if (default false .provider.emailVerifiedFromAttribute) }}
+            email = request.user.email
+            verified_address = request.user.attributes.get("email_verified_address")
+            return {
+                "email": email,
+                "email_verified": bool(email and verified_address == email),
+            }
+            {{- else }}
+            return {
+                "email": request.user.email,
+                "email_verified": True,
+            }
+            {{- end }}
+      {{- end }}
       - model: authentik_providers_oauth2.oauth2provider
         id: {{ .name }}-provider
         identifiers:
@@ -267,7 +298,11 @@ data:
             !Find [authentik_crypto.certificatekeypair, [name, {{ $signingKeyName | quote }}]]
           property_mappings:
             - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
+            {{- if $emailVerified }}
+            - !KeyOf {{ .name }}-scope-email-verified
+            {{- else }}
             - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
+            {{- end }}
             - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
             {{- if (default false .provider.includeGroups) }}
             - !KeyOf {{ .name }}-scope-groups

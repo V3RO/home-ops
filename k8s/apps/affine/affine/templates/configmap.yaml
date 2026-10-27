@@ -15,7 +15,7 @@ data:
       },
       "auth": {
         "allowSignup": false,
-        "allowSignupForOauth": false,
+        "allowSignupForOauth": true,
         "requireEmailVerification": false
       },
       "oauth": {

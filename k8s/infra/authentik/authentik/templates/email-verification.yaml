@@ -1,0 +1,93 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: blueprint-email-verification
+  namespace: {{ .Release.Namespace }}
+data:
+  email-verification.yaml: |
+    # yaml-language-server: $schema=https://goauthentik.io/blueprints/schema.json
+    version: 1
+    metadata:
+      name: Email verification
+      labels:
+        blueprints.goauthentik.io/description: "One-time email verification flow for AFFiNE OIDC"
+    entries:
+      - model: authentik_stages_email.emailstage
+        id: email-verification-stage
+        identifiers:
+          name: email-verification
+        attrs:
+          name: email-verification
+          use_global_settings: true
+          template: email/account_confirmation.html
+          activate_user_on_success: false
+          token_expiry: minutes=30
+          subject: Verify your email address
+
+      # Record the address only after the user follows the email link and
+      # returns through the flow token. Submitting the form alone is not proof.
+      - model: authentik_policies_expression.expressionpolicy
+        id: email-verified-address-policy
+        identifiers:
+          name: email-verified-address
+        attrs:
+          name: email-verified-address
+          expression: |
+            user = request.context.get("pending_user")
+            token = request.context.get("is_restored")
+
+            if user and user.pk and user.email and token and token.user_id == user.pk:
+                user.attributes["email_verified_address"] = user.email
+                user.save(update_fields=["attributes"])
+
+            return True
+
+      - model: authentik_flows.flow
+        id: verify-email-flow
+        identifiers:
+          slug: verify-email
+        attrs:
+          name: Verify email
+          title: Verify your email address
+          designation: authentication
+          authentication: none
+          policy_engine_mode: any
+          layout: stacked
+
+      - model: authentik_flows.flowstagebinding
+        id: verify-email-identification
+        identifiers:
+          target: !KeyOf verify-email-flow
+          stage: !Find [authentik_stages_identification.identificationstage, [name, default-authentication-identification]]
+          order: 10
+
+      - model: authentik_flows.flowstagebinding
+        id: verify-email-password
+        identifiers:
+          target: !KeyOf verify-email-flow
+          stage: !Find [authentik_stages_password.passwordstage, [name, default-authentication-password]]
+          order: 20
+
+      - model: authentik_flows.flowstagebinding
+        id: verify-email-email
+        identifiers:
+          target: !KeyOf verify-email-flow
+          stage: !KeyOf email-verification-stage
+          order: 30
+
+      - model: authentik_flows.flowstagebinding
+        id: verify-email-login
+        identifiers:
+          target: !KeyOf verify-email-flow
+          stage: !Find [authentik_stages_user_login.userloginstage, [name, default-authentication-login]]
+          order: 100
+        attrs:
+          evaluate_on_plan: false
+          re_evaluate_policies: true
+
+      - model: authentik_policies.policybinding
+        id: verify-email-login-policy
+        identifiers:
+          target: !KeyOf verify-email-login
+          policy: !KeyOf email-verified-address-policy
+          order: 0

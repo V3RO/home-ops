@@ -120,6 +120,37 @@ spec:
               secretKeyRef:
                 name: authentik-secret
                 key: quiClientSecret
+          - name: AUTHENTIK_EMAIL__HOST
+            valueFrom:
+              secretKeyRef:
+                name: authentik-secret
+                key: smtpHost
+          - name: AUTHENTIK_EMAIL__PORT
+            valueFrom:
+              secretKeyRef:
+                name: authentik-secret
+                key: smtpPort
+          - name: AUTHENTIK_EMAIL__USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: authentik-secret
+                key: smtpUsername
+          - name: AUTHENTIK_EMAIL__PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: authentik-secret
+                key: smtpToken
+          - name: AUTHENTIK_EMAIL__USE_TLS
+            value: "true"
+          - name: AUTHENTIK_EMAIL__USE_SSL
+            value: "false"
+          - name: AUTHENTIK_EMAIL__TIMEOUT
+            value: "30"
+          - name: AUTHENTIK_EMAIL__FROM
+            valueFrom:
+              secretKeyRef:
+                name: authentik-secret
+                key: smtpUsername
           - name: AUTHENTIK_USER_PASSWORD_V3RO
             valueFrom:
               secretKeyRef:
@@ -160,6 +191,7 @@ spec:
           - blueprint-adguard
           - blueprint-actual
           - blueprint-affine
+          - blueprint-email-verification
           - blueprint-immich
           - blueprint-kiali
           - blueprint-flux
@@ -466,6 +498,9 @@ spec:
                 - authorization_code
                 - refresh_token
               includeClaimsInIdToken: true
+              # Real verification: require the address recorded by the
+              # one-time verify-email flow, not an asserted true claim.
+              emailVerifiedFromAttribute: true
               redirectUris:
                 - url: https://affine.schober.dev/oauth/callback
                   matchingMode: strict
