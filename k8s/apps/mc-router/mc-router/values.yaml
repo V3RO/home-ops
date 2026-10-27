@@ -15,7 +15,7 @@ home-ops-app-chart:
 
   image:
     repository: itzg/mc-router
-    tag: "1.47.2"
+    tag: "1.50.1"
     pullPolicy: IfNotPresent
 
   args:
