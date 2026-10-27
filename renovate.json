@@ -4,6 +4,7 @@
   "timezone": "Europe/Vienna",
   "schedule": ["* 0-6 * * *"],
   "platformAutomerge": true,
+  "automergeStrategy": "rebase",
   "flux": {
     "managerFilePatterns": ["/^k8s/.+\\.ya?ml$/"]
   },
