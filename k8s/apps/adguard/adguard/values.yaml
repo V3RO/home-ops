@@ -1,7 +1,7 @@
 home-ops-app-chart:
   image:
     repository: adguard/adguardhome
-    tag: v0.107.73
+    tag: v0.107.79
     pullPolicy: IfNotPresent
 
   args:
