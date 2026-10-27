@@ -26,7 +26,7 @@ spec:
         - name: netbird
           # The client, not the server. Self-hosted management URL is required
           # or the client would try to enrol against NetBird Cloud.
-          image: netbirdio/netbird:0.77.0
+          image: netbirdio/netbird:0.81.5
           env:
             - name: NB_MANAGEMENT_URL
               value: https://netbird.schober.dev
