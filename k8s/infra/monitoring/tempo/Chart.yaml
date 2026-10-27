@@ -6,4 +6,4 @@ type: application
 dependencies:
   - name: tempo
     repository: https://grafana.github.io/helm-charts
-    version: 1.24.1
+    version: 1.24.4
