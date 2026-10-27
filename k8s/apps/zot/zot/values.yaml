@@ -45,7 +45,8 @@ zot:
                                   "actions": ["read", "create"]
                               }
                           ],
-                        "defaultPolicy": ["read"]
+                        "defaultPolicy": ["read"],
+                        "anonymousPolicy": ["read"]
                      }
                   },
                   "adminPolicy": {
