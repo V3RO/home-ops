@@ -472,6 +472,9 @@ spec:
               name: Renovate
               clientId: renovate
               clientSecretEnv: AUTHENTIK_RENOVATE_CLIENT_SECRET
+              grantTypes:
+                - authorization_code
+                - refresh_token
               includeGroups: true
               redirectUris:
                 - url: https://renovate.schober.dev/auth/callback
