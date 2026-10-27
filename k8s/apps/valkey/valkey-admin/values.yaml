@@ -1,6 +1,6 @@
 image:
   repository: valkey/valkey-admin
-  tag: "1.0.1"
+  tag: "1.2.0"
   pullPolicy: IfNotPresent
 
 service:
