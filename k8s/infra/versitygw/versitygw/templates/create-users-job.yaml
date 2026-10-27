@@ -61,7 +61,7 @@ spec:
             name: versitygw-setup-scripts
       containers:
         - name: create-users
-          image: curlimages/curl:8.11.1
+          image: curlimages/curl:8.23.0
           command: ["sh", "/scripts/create-users.sh"]
           securityContext:
             allowPrivilegeEscalation: false

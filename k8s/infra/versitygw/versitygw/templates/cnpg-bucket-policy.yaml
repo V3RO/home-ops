@@ -50,7 +50,7 @@ spec:
             name: versitygw-setup-scripts
       containers:
         - name: bucket-setup
-          image: curlimages/curl:8.11.1
+          image: curlimages/curl:8.23.0
           command: ["sh", "/scripts/bucket-setup.sh"]
           securityContext:
             allowPrivilegeEscalation: false
