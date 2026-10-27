@@ -5,5 +5,5 @@ type: application
 version: 0.2.0
 dependencies:
   - name: jellyfin
-    version: 3.2.0
+    version: 3.7.0
     repository: https://jellyfin.github.io/jellyfin-helm
