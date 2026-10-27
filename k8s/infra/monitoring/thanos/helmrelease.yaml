@@ -88,7 +88,7 @@ spec:
 
     compactorCronJob:
       enabled: true
-      image: quay.io/thanos/thanos:v0.42.4
+      image: quay.io/thanos/thanos:v0.42.5
       schedule: "0 3 * * *"
       activeDeadlineSeconds: 7200
       scratchSize: 10Gi

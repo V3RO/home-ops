@@ -75,7 +75,7 @@ spec:
 
         sidecarContainers:
           thanos-sidecar:
-            image: quay.io/thanos/thanos:v0.42.4
+            image: quay.io/thanos/thanos:v0.42.5
             args:
               - sidecar
               - --tsdb.path=/data
