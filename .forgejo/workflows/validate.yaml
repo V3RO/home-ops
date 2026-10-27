@@ -1,0 +1,243 @@
+name: Validate
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  validate:
+    name: validate
+    runs-on: docker
+    timeout-minutes: 30
+    container:
+      image: node:26-bookworm-slim
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install validation tools
+        env:
+          HELM_VERSION: v4.3.1
+          KUBECTL_VERSION: v1.37.1
+          KUBECONFORM_VERSION: v0.8.0
+          GITLEAKS_VERSION: v8.30.1
+          YQ_VERSION: v4.54.1
+          YAMLLINT_VERSION: "1.37.1"
+        run: |
+          set -euo pipefail
+
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            ca-certificates \
+            curl \
+            git \
+            jq \
+            python3 \
+            python3-pip \
+            tar \
+            gzip
+          rm -rf /var/lib/apt/lists/*
+
+          pip3 install --no-cache-dir --break-system-packages "yamllint==${YAMLLINT_VERSION}"
+
+          curl -fsSL "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz" | tar -xz -C /tmp
+          install -m 0755 /tmp/linux-amd64/helm /usr/local/bin/helm
+
+          curl -fsSLo /usr/local/bin/kubectl \
+            "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+          chmod 0755 /usr/local/bin/kubectl
+
+          curl -fsSL \
+            "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" \
+            | tar -xz -C /usr/local/bin kubeconform
+
+          curl -fsSL \
+            "https://github.com/gitleaks/gitleaks/releases/download/${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION#v}_linux_x64.tar.gz" \
+            | tar -xz -C /usr/local/bin gitleaks
+
+          curl -fsSLo /usr/local/bin/yq \
+            "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64"
+          chmod 0755 /usr/local/bin/yq
+
+      - name: Determine changed files
+        run: |
+          set -euo pipefail
+
+          if [ "${{ forgejo.event_name }}" = "pull_request" ]; then
+            base="${{ forgejo.event.pull_request.base.sha }}"
+          else
+            base="${{ forgejo.event.before }}"
+          fi
+
+          if [ -z "${base:-}" ] || [[ "$base" =~ ^0+$ ]]; then
+            base="$(git rev-list --max-parents=0 HEAD)"
+          fi
+
+          # Diff against the merge base so unrelated base-branch changes are
+          # not validated as part of a pull request.
+          base="$(git merge-base "$base" HEAD 2>/dev/null || printf '%s' "$base")"
+
+          printf '%s\n' "$base" > /tmp/diff-base
+          git diff --name-only "$base" HEAD > /tmp/changed-files
+
+          echo "Base: $base"
+          echo "Changed files:"
+          sed 's/^/  /' /tmp/changed-files
+
+      - name: Select impacted charts and kustomizations
+        run: |
+          set -euo pipefail
+
+          : > /tmp/charts
+          : > /tmp/kustomizations
+
+          while IFS= read -r file; do
+            [ -n "$file" ] || continue
+
+            case "$file" in
+              k8s/apps/* | k8s/infra/*)
+                dir="$(dirname "$file")"
+                while [ "$dir" != "." ] && [ "$dir" != "/" ]; do
+                  if [ -f "$dir/Chart.yaml" ]; then
+                    printf '%s\n' "$dir" >> /tmp/charts
+                    break
+                  fi
+                  dir="$(dirname "$dir")"
+                done
+                ;;
+            esac
+
+            case "$file" in
+              k8s/infra/* | k8s/bootstrap/*)
+                dir="$(dirname "$file")"
+                while [ "$dir" != "." ] && [ "$dir" != "/" ]; do
+                  if [ -f "$dir/kustomization.yaml" ]; then
+                    printf '%s\n' "$dir" >> /tmp/kustomizations
+                    break
+                  fi
+                  dir="$(dirname "$dir")"
+                done
+                ;;
+            esac
+          done < /tmp/changed-files
+
+          sort -u -o /tmp/charts /tmp/charts
+          sort -u -o /tmp/kustomizations /tmp/kustomizations
+
+          echo "Changed Helm charts:"
+          sed 's/^/  /' /tmp/charts
+          echo "Changed Kustomizations:"
+          sed 's/^/  /' /tmp/kustomizations
+
+      - name: Validate changed Helm charts
+        run: |
+          set -euo pipefail
+
+          if [ ! -s /tmp/charts ]; then
+            echo "No changed Helm charts."
+            exit 0
+          fi
+
+          while IFS= read -r chart; do
+            echo "::group::Helm chart: $chart"
+
+            helm dependency update "$chart"
+
+            values=()
+            if [ -f "$chart/values.yaml" ]; then
+              values+=(-f "$chart/values.yaml")
+            fi
+
+            release="$(basename "$chart")"
+            namespace="$(basename "$(dirname "$chart")")"
+
+            if [ -f "$chart/helmrelease.yaml" ]; then
+              yq -o=yaml '.spec.values // {}' "$chart/helmrelease.yaml" > /tmp/helmrelease-values.yaml
+              values+=(-f /tmp/helmrelease-values.yaml)
+
+              release_override="$(yq -r '.spec.releaseName // ""' "$chart/helmrelease.yaml")"
+              namespace_override="$(yq -r '.spec.targetNamespace // ""' "$chart/helmrelease.yaml")"
+              [ -n "$release_override" ] && release="$release_override"
+              [ -n "$namespace_override" ] && namespace="$namespace_override"
+            fi
+
+            helm lint "$chart" "${values[@]}"
+            helm template "$release" "$chart" --namespace "$namespace" "${values[@]}" > /tmp/rendered.yaml
+
+            kubeconform -strict -summary -ignore-missing-schemas \
+              -schema-location default \
+              -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+              /tmp/rendered.yaml
+
+            echo "::endgroup::"
+          done < /tmp/charts
+
+      - name: Validate changed Kustomizations
+        run: |
+          set -euo pipefail
+
+          if [ ! -s /tmp/kustomizations ]; then
+            echo "No changed Kustomizations."
+            exit 0
+          fi
+
+          while IFS= read -r dir; do
+            echo "::group::Kustomization: $dir"
+
+            kubectl kustomize "$dir" > /tmp/rendered.yaml
+
+            kubeconform -strict -summary -ignore-missing-schemas \
+              -schema-location default \
+              -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+              /tmp/rendered.yaml
+
+            echo "::endgroup::"
+          done < /tmp/kustomizations
+
+      - name: Scan changed commits with gitleaks
+        run: |
+          set -euo pipefail
+
+          base="$(cat /tmp/diff-base)"
+          head="$(git rev-parse HEAD)"
+
+          if [ "$base" = "$head" ]; then
+            echo "No new commits to scan."
+            exit 0
+          fi
+
+          gitleaks git --log-opts="${base}..${head}" --redact --no-banner --verbose
+
+      - name: Lint changed YAML
+        run: |
+          set -euo pipefail
+
+          files=()
+          while IFS= read -r file; do
+            case "$file" in
+              *.yaml | *.yml) ;;
+              *) continue ;;
+            esac
+
+            # Chart templates are Go templates, not valid YAML. Vendored CRDs
+            # are generated upstream and are not edited here.
+            case "$file" in
+              */templates/* | */crds/*) continue ;;
+            esac
+
+            [ -f "$file" ] && files+=("$file")
+          done < /tmp/changed-files
+
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No changed YAML files to lint."
+            exit 0
+          fi
+
+          yamllint -f parsable -c .yamllint.yml "${files[@]}"
