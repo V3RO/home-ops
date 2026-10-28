@@ -204,6 +204,7 @@ spec:
           - blueprint-netbird
           - blueprint-qui
           - blueprint-shoko
+          - blueprint-bazarr
           - blueprint-valkey-admin
           - blueprint-thanos
           - blueprint-thanos-bucket
