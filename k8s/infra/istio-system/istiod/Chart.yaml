@@ -5,5 +5,5 @@ type: application
 version: 1.0.0
 dependencies:
   - name: istiod
-    version: 1.30.4
+    version: 1.30.7
     repository: https://istio-release.storage.googleapis.com/charts
