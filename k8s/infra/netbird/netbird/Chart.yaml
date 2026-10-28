@@ -8,5 +8,5 @@ dependencies:
     version: 0.1.0
     repository: oci://zot.schober.dev/charts
   - name: netbird
-    version: 1.0.8
+    version: 1.0.16
     repository: oci://ghcr.io/helmforgedev/helm
