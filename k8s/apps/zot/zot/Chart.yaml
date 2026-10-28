@@ -5,5 +5,5 @@ type: application
 version: 0.1.0
 dependencies:
   - name: zot
-    version: 0.1.98
+    version: 0.1.128
     repository: http://zotregistry.dev/helm-charts
