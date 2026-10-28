@@ -75,7 +75,7 @@ spec:
           command:
             - cilium
             - install
-            - --version=v1.19.10
+            - --version=v1.20.4
             - --values
             - values.yaml
       volumes:
