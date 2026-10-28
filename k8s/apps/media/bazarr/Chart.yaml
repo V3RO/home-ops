@@ -1,0 +1,9 @@
+apiVersion: v2
+name: bazarr
+description: "Bazarr subtitle management for the media stack (home-ops-app-chart)"
+type: application
+version: 0.1.0
+dependencies:
+  - name: home-ops-app-chart
+    version: 0.3.2
+    repository: oci://zot.schober.dev/charts

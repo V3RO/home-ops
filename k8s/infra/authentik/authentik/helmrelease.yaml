@@ -397,6 +397,17 @@ spec:
               metaLaunchUrl: https://shoko.schober.dev
               icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/shoko.svg
             access: admin
+          - name: bazarr
+            provider:
+              name: Bazarr
+              externalHost: https://bazarr.schober.dev
+              mode: forward_single
+            application:
+              name: Bazarr
+              slug: bazarr
+              metaLaunchUrl: https://bazarr.schober.dev
+              icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/bazarr.svg
+            access: admin
           - name: jellyfin
             provider:
               kind: ldap
