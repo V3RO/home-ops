@@ -30,12 +30,12 @@ metadata:
   # content never changed, so the apply was a no-op.)
   #
   # So the name carries a hash of everything that determines the pod: the
-  # script ConfigMap, and the client list passed to it. Change either and
-  # Helm creates a new Job and prunes the old one; change neither and the
-  # name is stable, so nothing re-runs.
-  name: versitygw-create-users-{{ printf "%s|%s"
+  # script ConfigMap, the client list passed to it, and the image. Change any
+  # of them and Helm creates a new Job and prunes the old one; change none and
+  # the name is stable, so nothing re-runs.
+  name: versitygw-create-users-{{ printf "%s|%s|%s"
         ($.Files.Get "files/create-users.sh" | sha256sum)
-        (join "," $rows) | sha256sum | trunc 8 }}
+        (join "," $rows) $.Values.curlImage | sha256sum | trunc 8 }}
   namespace: {{ .Release.Namespace }}
 spec:
   # Generous because these Jobs are scheduled alongside versitygw on a
@@ -61,7 +61,7 @@ spec:
             name: versitygw-setup-scripts
       containers:
         - name: create-users
-          image: curlimages/curl:8.23.0
+          image: {{ .Values.curlImage }}
           command: ["sh", "/scripts/create-users.sh"]
           securityContext:
             allowPrivilegeEscalation: false

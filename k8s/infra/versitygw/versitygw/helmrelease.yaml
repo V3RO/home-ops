@@ -36,6 +36,7 @@ spec:
     # locking, so re-running create-users more often than necessary is the
     # opposite of free.
     jobTTLSecondsAfterFinished: 604800  # 7d
+    curlImage: curlimages/curl:8.23.0
 
     cnpgClients:
       - affine

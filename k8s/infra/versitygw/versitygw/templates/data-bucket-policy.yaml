@@ -21,9 +21,9 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   # Hashed because spec.template is immutable; see versitygw-create-users.
-  name: {{ $client.bucket }}-bucket-setup-{{ printf "%s|%s"
+  name: {{ $client.bucket }}-bucket-setup-{{ printf "%s|%s|%s"
         ($.Files.Get "files/bucket-setup.sh" | sha256sum)
-        $policy | sha256sum | trunc 8 }}
+        $policy $.Values.curlImage | sha256sum | trunc 8 }}
   namespace: {{ $.Release.Namespace }}
 spec:
   # Generous because these Jobs are scheduled alongside versitygw on a
@@ -46,7 +46,7 @@ spec:
             name: versitygw-setup-scripts
       containers:
         - name: bucket-setup
-          image: curlimages/curl:8.23.0
+          image: {{ $.Values.curlImage }}
           command: ["sh", "/scripts/bucket-setup.sh"]
           securityContext:
             allowPrivilegeEscalation: false
