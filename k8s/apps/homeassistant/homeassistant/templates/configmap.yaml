@@ -11,11 +11,6 @@ data:
       internal_url: https://homeassistant.schober.dev
       external_url: https://homeassistant.schober.dev
 
-    http:
-      use_x_forwarded_for: true
-      trusted_proxies:
-        - 10.244.0.0/16
-
     recorder:
       db_url: !env_var POSTGRES_URL
       db_max_retries: 30
