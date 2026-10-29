@@ -60,6 +60,7 @@ home-ops-app-chart:
         targetPort: http
         protocol: TCP
         name: http
+        appProtocol: kubernetes.io/ws
 
   home-ops-route-chart:
     enabled: true
