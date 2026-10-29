@@ -109,6 +109,12 @@ spec:
           # Home Assistant uses host networking for multicast discovery and
           # should not be enrolled in the ambient mesh.
           istio.io/dataplane-mode: none
+          # hostNetwork is a baseline violation, and the cluster default is
+          # baseline. The namespace is single-purpose, so opt it into the
+          # privileged profile rather than weakening the cluster default.
+          pod-security.kubernetes.io/enforce: privileged
+          pod-security.kubernetes.io/audit: privileged
+          pod-security.kubernetes.io/warn: privileged
       - name: kiali
       - name: vert-sh
       - name: rancher
