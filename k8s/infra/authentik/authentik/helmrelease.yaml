@@ -435,6 +435,7 @@ spec:
               clientId: mealie
               clientSecretEnv: AUTHENTIK_MEALIE_CLIENT_SECRET
               includeGroups: true
+              emailVerifiedFromAttribute: true
               redirectUris:
                 - url: https://mealie.schober.dev/login
                   matchingMode: strict
