@@ -104,6 +104,11 @@ spec:
           pod-security.kubernetes.io/warn: privileged
       - name: it-tools
       - name: uptime-kuma
+      - name: homeassistant
+        labels:
+          # Home Assistant uses host networking for multicast discovery and
+          # should not be enrolled in the ambient mesh.
+          istio.io/dataplane-mode: none
       - name: kiali
       - name: vert-sh
       - name: rancher

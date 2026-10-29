@@ -203,6 +203,7 @@ spec:
           - blueprint-flux
           - blueprint-netbird
           - blueprint-qui
+          - blueprint-homeassistant
           - blueprint-shoko
           - blueprint-bazarr
           - blueprint-valkey-admin
@@ -646,6 +647,25 @@ spec:
               metaLaunchUrl: https://qui.schober.dev
               icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/qui.svg
             access: admin
+          - name: homeassistant
+            provider:
+              kind: oauth2
+              name: Home Assistant
+              clientType: public
+              clientId: homeassistant
+              grantTypes:
+                - authorization_code
+                - refresh_token
+              includeGroups: true
+              redirectUris:
+                - url: https://homeassistant.schober.dev/auth/oidc/callback
+                  matchingMode: strict
+            application:
+              name: Home Assistant
+              slug: homeassistant
+              metaLaunchUrl: https://homeassistant.schober.dev
+              icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/home-assistant.svg
+            access: user
 
     postgres:
       imageName: ghcr.io/cloudnative-pg/postgresql:18.1

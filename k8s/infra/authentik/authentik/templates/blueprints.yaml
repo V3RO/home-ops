@@ -272,10 +272,12 @@ data:
             !Find [authentik_flows.flow, [slug, default-provider-authorization-explicit-consent]]
           invalidation_flow:
             !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
-          client_type: confidential
+          client_type: {{ default "confidential" .provider.clientType }}
           client_id: {{ .provider.clientId }}
-          {{- if $entry.provider.clientSecretEnv }}
-          client_secret: !Env {{ $entry.provider.clientSecretEnv }}
+          {{- if eq (default "confidential" .provider.clientType) "confidential" }}
+          {{- with $entry.provider.clientSecretEnv }}
+          client_secret: !Env {{ . }}
+          {{- end }}
           {{- end }}
           {{- with .provider.grantTypes }}
           grant_types:

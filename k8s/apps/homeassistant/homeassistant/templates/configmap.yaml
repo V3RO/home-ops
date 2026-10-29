@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: homeassistant-config-files
+  namespace: {{ .Release.Namespace }}
+data:
+  configuration.yaml: |
+    default_config:
+
+    homeassistant:
+      internal_url: https://homeassistant.schober.dev
+      external_url: https://homeassistant.schober.dev
+
+    http:
+      use_x_forwarded_for: true
+      trusted_proxies:
+        - 10.244.0.0/16
+
+    recorder:
+      db_url: !env_var POSTGRES_URL
+      db_max_retries: 30
+      db_retry_wait: 5
+
+    auth_oidc: !include auth_oidc.yaml
+
+  auth_oidc.yaml: |
+    client_id: homeassistant
+    discovery_url: https://auth.schober.dev/application/o/homeassistant/.well-known/openid-configuration
+    display_name: Authentik
+    features:
+      default_redirect: false
+      force_https: true
+    claims:
+      username: preferred_username
+      display_name: name
+      groups: groups
+    roles:
+      admin: homelab-admins
+      user: homelab-users

@@ -52,6 +52,7 @@ spec:
       - seerr
       - netbird
       - qui
+      - homeassistant
 
     dataClients:
       - name: forgejo-data

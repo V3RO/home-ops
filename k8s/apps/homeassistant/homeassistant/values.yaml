@@ -1,0 +1,136 @@
+home-ops-app-chart:
+  image:
+    repository: ghcr.io/home-assistant/home-assistant
+    tag: "2026.11.0b1"
+    pullPolicy: IfNotPresent
+
+  strategy:
+    type: Recreate
+
+  podAnnotations:
+    reloader.stakater.com/auto: "true"
+
+  hostNetwork: true
+  dnsPolicy: ClusterFirstWithHostNet
+
+  terminationGracePeriodSeconds: 60
+
+  env:
+    - name: TZ
+      value: Europe/Vienna
+
+  ports:
+    - name: http
+      containerPort: 8123
+      protocol: TCP
+
+  startupProbe:
+    httpGet:
+      path: /manifest.json
+      port: http
+    periodSeconds: 5
+    failureThreshold: 60
+
+  livenessProbe:
+    httpGet:
+      path: /manifest.json
+      port: http
+    initialDelaySeconds: 60
+    periodSeconds: 30
+    failureThreshold: 3
+
+  readinessProbe:
+    httpGet:
+      path: /manifest.json
+      port: http
+    initialDelaySeconds: 20
+    periodSeconds: 10
+
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+
+  service:
+    ports:
+      - port: 80
+        targetPort: http
+        protocol: TCP
+        name: http
+
+  home-ops-route-chart:
+    enabled: true
+    host: homeassistant.schober.dev
+    backend:
+      port: 80
+
+  persistence:
+    config:
+      enabled: true
+      storageClass: longhorn
+      accessModes:
+        - ReadWriteOnce
+      size: 10Gi
+      mountPath: /config
+      annotations:
+        helm.sh/resource-policy: keep
+        argocd.argoproj.io/sync-options: Prune=false
+
+  # Build the complete recorder URL in-cluster so the generated CNPG password
+  # is URL-encoded correctly and never appears in Git.
+  externalSecrets:
+    db-url:
+      enabled: true
+      refreshInterval: 1h
+      secretStoreRef:
+        name: bitwarden-cnpg-secrets
+        kind: ClusterSecretStore
+      injectAsEnv: true
+      template:
+        engineVersion: v2
+        data:
+          POSTGRES_URL: "postgresql://homeassistant:{{ .password | urlquery }}@homeassistant-postgres-rw.homeassistant.svc.cluster.local:5432/homeassistant"
+      data:
+        - secretKey: password
+          remoteRef:
+            key: homeassistant-db-secret
+
+  extraVolumes:
+    - name: ha-config
+      configMap:
+        name: homeassistant-config-files
+        items:
+          - key: configuration.yaml
+            path: configuration.yaml
+          - key: auth_oidc.yaml
+            path: auth_oidc.yaml
+
+  extraVolumeMounts:
+    - name: ha-config
+      mountPath: /config/configuration.yaml
+      subPath: configuration.yaml
+      readOnly: true
+    - name: ha-config
+      mountPath: /config/auth_oidc.yaml
+      subPath: auth_oidc.yaml
+      readOnly: true
+
+  # The CNPG chart runs its own 3-instance cluster and backs it up to the
+  # existing VersityGW bucket through the barman-cloud plugin.
+  home-ops-cnpg-cluster-chart:
+    enabled: true
+    cluster:
+      instances: 3
+      imageName: ghcr.io/cloudnative-pg/postgresql:18.1
+      storage:
+        class: openebs-hostpath
+        size: 5Gi
+      database: homeassistant
+      owner: homeassistant
+    backup:
+      enabled: true
+      # The 03:00–03:55 slots are already taken by other CNPG clusters.
+      schedule: "0 0 4 * * *"
