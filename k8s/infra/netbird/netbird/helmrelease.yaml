@@ -143,6 +143,8 @@ spec:
                   - path:
                       type: PathPrefix
                       value: /management.ProxyService/
+                timeouts:
+                  request: "0s"
                 backendRefs:
                   - name: netbird-server-h2c
                     port: 80
@@ -163,6 +165,9 @@ spec:
                   - path:
                       type: PathPrefix
                       value: /ws-proxy/
+                # The relay WebSocket and ws-proxy tunnels are long-lived too.
+                timeouts:
+                  request: "0s"
                 backendRefs:
                   - name: netbird-server
                     port: 80
