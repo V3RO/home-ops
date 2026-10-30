@@ -24,7 +24,11 @@ spec:
       retries: 3
       remediateLastFailure: true
     crds: CreateReplace
-    serverSideApply: disabled
+    # Keep SSA enabled now that the stale DLB/FPGA webhooks are gone. If a
+    # future chart removes webhooks again, temporarily switch to client-side
+    # apply due to cert-manager cainjector's field ownership.
+    # https://github.com/kubernetes/kubernetes/issues/128102
+    serverSideApply: enabled
   values:
     manager:
       devices:
