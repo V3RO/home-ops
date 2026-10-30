@@ -24,6 +24,7 @@ spec:
       retries: 3
       remediateLastFailure: true
     crds: CreateReplace
+    serverSideApply: disabled
   values:
     manager:
       devices:
