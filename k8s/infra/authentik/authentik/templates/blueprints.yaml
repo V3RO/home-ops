@@ -348,6 +348,23 @@ data:
         attrs:
           group: !Find [authentik_core.group, [name, "homelab-admins"]]
       {{- end }}
+      {{- $accessUserOrder := 0 }}
+      {{- if eq .access "user" }}
+      {{- $accessUserOrder = 2 }}
+      {{- else if eq .access "admin" }}
+      {{- $accessUserOrder = 1 }}
+      {{- end }}
+      # Service accounts (e.g. the LDAP bind user) are not members of the access
+      # groups above, but authentik still requires application access before an
+      # LDAP bind succeeds. Grant those users access explicitly, least-privilege.
+      {{- range $i, $username := .accessUsers }}
+      - model: authentik_policies.policybinding
+        identifiers:
+          target: !Find [authentik_core.application, [slug, {{ $entry.application.slug | quote }}]]
+          order: {{ add $accessUserOrder $i }}
+        attrs:
+          user: !Find [authentik_core.user, [username, {{ $username | quote }}]]
+      {{- end }}
 {{- end }}
 
 {{- $proxyOutpost := .Values.authentik.blueprints.outposts.proxy }}

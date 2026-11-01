@@ -429,6 +429,11 @@ spec:
               metaLaunchUrl: https://jellyfin.schober.dev
               icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/jellyfin.svg
             access: user
+            # The LDAP bind/search account needs access to the Jellyfin
+            # application, otherwise authentik rejects its bind with LDAP
+            # result code 50 ("Insufficient Access Rights").
+            accessUsers:
+              - jellyfin-ldap
           - name: mealie
             provider:
               kind: oauth2
