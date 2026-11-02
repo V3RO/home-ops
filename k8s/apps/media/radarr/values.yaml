@@ -33,7 +33,10 @@ postgres:
   imageName: ghcr.io/cloudnative-pg/postgresql:18.1
   storage:
     class: openebs-hostpath
-    size: 2Gi
+    # 10Gi: with archive_timeout=5min PostgreSQL emits a 16MB WAL segment
+    # every 5 minutes even when idle, so a 2Gi volume only leaves ~9h of
+    # headroom during a WAL archive outage.
+    size: 10Gi
   database: radarr_main
   logDatabase: radarr_log
   owner: radarr
