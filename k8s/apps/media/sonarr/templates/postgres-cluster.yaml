@@ -7,6 +7,11 @@ spec:
   instances: {{ .Values.postgres.instances }}
   imageName: {{ .Values.postgres.imageName }}
   storage:
+    # openebs-hostpath does not support in-place expansion. Existing PVCs are
+    # rotated with `kubectl cnpg destroy`; new ones are created at the
+    # template size. Without this, the operator retries resizing every existing
+    # 2Gi PVC and blocks reconciliation on the unsupported resize error.
+    resizeInUseVolumes: false
     pvcTemplate:
       accessModes:
         - ReadWriteOnce
