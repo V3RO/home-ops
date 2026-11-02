@@ -68,7 +68,11 @@ spec:
 
     versitygw:
       image:
-        tag: "v1.7.0"
+        # v1.8.0 fixes S3 DeleteObjects authorization for non-root users
+        # (versity/versitygw#1327), which is what CNPG's barman retention
+        # uses. Without it, barman-cloud-backup-delete fails with
+        # AccessDenied and old backups/WALs are never pruned.
+        tag: "v1.10.0"
 
       replicaCount: 3
       strategy:
@@ -84,7 +88,7 @@ spec:
         enabled: true
         create: false
         claimName: versitygw-data
-        size: 50Gi
+        size: 100Gi
         storageClassName: truenas-nfs-media
         accessMode: ReadWriteMany
 
