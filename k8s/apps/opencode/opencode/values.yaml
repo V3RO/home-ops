@@ -152,8 +152,8 @@ home-ops-app-chart:
     create: false
     name: opencode
 
-  # Roll the pod when a Bitwarden-backed secret changes (e.g. server password
-  # or PAT rotation). Sessions and checkouts are on PVCs, so a restart is safe.
+  # Roll the pod when a Bitwarden-backed secret changes (e.g. PAT or model API
+  # key rotation). Sessions and checkouts are on PVCs, so a restart is safe.
   podAnnotations:
     reloader.stakater.com/auto: "true"
 
@@ -207,8 +207,10 @@ home-ops-app-chart:
       value: /tools/usr/libexec/git-core
     - name: OPENCODE_CONFIG
       value: /etc/opencode/opencode.json
-    - name: OPENCODE_SERVER_USERNAME
-      value: opencode
+    # No OPENCODE_SERVER_PASSWORD/OPENCODE_SERVER_USERNAME on purpose: the
+    # server itself must not require a second set of credentials. Access is
+    # authenticated by Authentik forward-auth on the HTTPRoute (homelab-admins
+    # only), and the CiliumNetworkPolicy only admits the internal Gateway.
     # Do not silently fall back to free/community models if a paid key fails.
     - name: OPENCODE_DISABLE_FREE_MODELS
       value: "1"
@@ -330,9 +332,6 @@ home-ops-app-chart:
         - secretKey: FORGEJO_TOKEN
           remoteRef:
             key: opencode-forgejo-token
-        - secretKey: OPENCODE_SERVER_PASSWORD
-          remoteRef:
-            key: opencode-server-password
       injectAsEnv: true
 
   home-ops-route-chart:
@@ -340,6 +339,12 @@ home-ops-app-chart:
     host: opencode.schober.dev
     backend:
       port: 4096
+    # Authentik forward-auth in front of the OpenCode server. The app is
+    # restricted to homelab-admins by the blueprint in
+    # k8s/infra/authentik/authentik/helmrelease.yaml, and the opencode
+    # namespace is covered by the ak-outpost-proxy ReferenceGrant.
+    authentik:
+      enabled: true
 
   extraVolumes:
     - name: tools

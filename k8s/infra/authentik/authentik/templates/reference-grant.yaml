@@ -17,6 +17,9 @@ spec:
     - group: gateway.networking.k8s.io
       kind: HTTPRoute
       namespace: monitoring
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: opencode
     - group: gateway.kgateway.dev
       kind: GatewayExtension
       namespace: media
@@ -32,6 +35,9 @@ spec:
     - group: gateway.kgateway.dev
       kind: GatewayExtension
       namespace: monitoring
+    - group: gateway.kgateway.dev
+      kind: GatewayExtension
+      namespace: opencode
   to:
     - group: ""
       kind: Service

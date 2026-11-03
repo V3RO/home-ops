@@ -206,6 +206,7 @@ spec:
           - blueprint-homeassistant
           - blueprint-shoko
           - blueprint-bazarr
+          - blueprint-opencode
           - blueprint-valkey-admin
           - blueprint-thanos
           - blueprint-thanos-bucket
@@ -409,6 +410,16 @@ spec:
               slug: bazarr
               metaLaunchUrl: https://bazarr.schober.dev
               icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/bazarr.svg
+            access: admin
+          - name: opencode
+            provider:
+              name: OpenCode
+              externalHost: https://opencode.schober.dev
+              mode: forward_single
+            application:
+              name: OpenCode
+              slug: opencode
+              metaLaunchUrl: https://opencode.schober.dev
             access: admin
           - name: jellyfin
             provider:
