@@ -42,6 +42,18 @@ rules:
     verbs:
       - get
       - list
+  # Read-only access to network policies so the agent can verify the effect of
+  # a CiliumNetworkPolicy change. Without this, a policy that fails schema
+  # validation silently leaves the previous one in place and the agent cannot
+  # see it. Still no write verbs, and no Secrets.
+  - apiGroups:
+      - cilium.io
+    resources:
+      - ciliumnetworkpolicies
+    verbs:
+      - get
+      - list
+      - watch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding

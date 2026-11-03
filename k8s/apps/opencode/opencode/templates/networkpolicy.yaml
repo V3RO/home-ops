@@ -75,6 +75,10 @@ spec:
         - matchName: api.moonshot.cn
         - matchName: models.dev
         - matchName: dl-cdn.alpinelinux.org
+        # OCI chart registry: every app chart depends on home-ops-app-chart.
+        # Without this, `helm dependency build` hangs and no app chart can be
+        # rendered locally.
+        - matchName: zot.schober.dev
         - matchName: registry.npmjs.org
         - matchName: pypi.org
         - matchName: files.pythonhosted.org

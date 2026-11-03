@@ -18,6 +18,7 @@ data:
     #   forgejo-pr pr list [--state open|closed|all]
     #   forgejo-pr pr view <number>
     #   forgejo-pr pr create --title <title> --body-file <file> [--base main] [--head <branch>]
+    #   forgejo-pr pr edit <number> --body-file <file>
     #   forgejo-pr pr comment <number> --body-file <file>
     set -euo pipefail
 
@@ -55,7 +56,7 @@ data:
     jqn() { jq -r "$@" 2>/dev/null || true; }
 
     usage() {
-      sed -n '2,6p' "$0" | sed 's/^    # \{0,1\}//' >&2
+      sed -n '2,7p' "$0" | sed 's/^    # \{0,1\}//' >&2
       exit 2
     }
 
@@ -100,6 +101,12 @@ data:
               --arg base "$base" --arg head "$head" \
               '{title:$t, body:$b, base:$base, head:$head}' > "$payload"
         call POST "pulls" "$payload" | jq -r '"opened #\(.number): \(.html_url)"'
+        ;;
+      edit)
+        [[ $# -eq 3 && "$2" == "--body-file" ]] || usage
+        [[ -r "$3" ]] || die "cannot read $3"
+        jq -n --arg b "$(cat "$3")" '{body:$b}' > "$payload"
+        call PATCH "pulls/$1" "$payload" | jq -r '"updated #\(.number): \(.html_url)"'
         ;;
       comment)
         [[ $# -eq 3 && "$2" == "--body-file" ]] || usage

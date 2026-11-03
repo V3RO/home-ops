@@ -124,6 +124,7 @@ data:
         { "action": "shell", "resource": "kubectl auth can-i*", "effect": "allow" },
         { "action": "shell", "resource": "kubectl kustomize *", "effect": "allow" },
         { "action": "shell", "resource": "kustomize build *", "effect": "allow" },
+        { "action": "shell", "resource": "kustomize version*", "effect": "allow" },
         { "action": "shell", "resource": "helm template *", "effect": "allow" },
         { "action": "shell", "resource": "helm lint *", "effect": "allow" },
         { "action": "shell", "resource": "helm show *", "effect": "allow" },
@@ -250,6 +251,10 @@ data:
     - `helm` is available for `template`, `lint`, `show`, `list`, `status` and
       `get`. `helm install`, `upgrade`, `uninstall` and `rollback` are denied:
       this cluster is reconciled from git, never from the agent.
+    - Every app chart depends on `home-ops-app-chart` from the zot OCI
+      registry, which allows anonymous pulls. To render one, run
+      `helm dependency build <chart>` and then `helm template`. Do not commit
+      the pulled `charts/` directory; it is temporary.
     - Do not modify `/tools` or install global packages. Use project-local
       tooling (`npm`, `pip`, `go`, `cargo`, ...) inside the repo.
     - The network is allowlisted to the in-cluster Forgejo Service, model APIs
@@ -313,7 +318,8 @@ data:
 
     ## Logs and incidents
 
-    Read-only `kubectl` is allowed directly (see Boundaries). For a deeper
-    investigation, use the `ops-triage` subagent. It may read pod logs and
-    workload status, but it must not mutate the cluster, read Secrets, or make
-    up evidence.
+    Read-only `kubectl` is allowed directly (see Boundaries), including
+    `ciliumnetworkpolicies`, so you can verify that a policy change actually
+    applied. For a deeper investigation, use the `ops-triage` subagent. It may
+    read pod logs and workload status, but it must not mutate the cluster, read
+    Secrets, or make up evidence.
