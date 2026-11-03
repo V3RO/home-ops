@@ -1,0 +1,114 @@
+{{- if .Values.prHelper.enabled }}
+# Narrow write path to Forgejo. The agent is not allowed to run curl at all;
+# this helper is the only command that can reach the Forgejo write API, and it
+# only exposes pull requests. Credentials are passed to curl through its
+# config file on stdin, so the token never appears in argv (`ps`) and is never
+# printed. Read-only git operations go through git itself.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: opencode-bin
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Release.Name }}
+data:
+  forgejo-pr: |
+    #!/tools/bin/bash
+    # Usage:
+    #   forgejo-pr pr list [--state open|closed|all]
+    #   forgejo-pr pr view <number>
+    #   forgejo-pr pr create --title <title> --body-file <file> [--base main] [--head <branch>]
+    #   forgejo-pr pr comment <number> --body-file <file>
+    set -euo pipefail
+
+    api="${FORGEJO_API_URL:?FORGEJO_API_URL is not set}"
+    repo="${FORGEJO_REPO:?FORGEJO_REPO is not set}"
+    user="${FORGEJO_USERNAME:?FORGEJO_USERNAME is not set}"
+    token="${FORGEJO_TOKEN:?FORGEJO_TOKEN is not set}"
+
+    die() { printf 'forgejo-pr: %s\n' "$*" >&2; exit 2; }
+
+    # Transient body file for the request payload; readable only by us.
+    payload=$(mktemp "${TMPDIR:-/tmp}/forgejo-pr.XXXXXX")
+    trap 'rm -f "$payload" "$payload.http"' EXIT
+
+    # Writes go through a low-privilege assumption: only PR endpoints are
+    # reachable from here, so a bug in argument parsing cannot delete repos,
+    # change branch protection or create users.
+    call() {
+      local method="$1" path="$2" body="${3:-}"
+      local -a args=(-sS -o "$payload.http" -w '%{http_code}' -X "$method"
+        -H 'Accept: application/json')
+      [[ -n "$body" ]] && args+=(-H 'Content-Type: application/json' --data-binary "@$body")
+      args+=("$api/api/v1/repos/$repo/$path")
+      # Credentials via stdin config, never argv.
+      local code
+      code=$(printf 'user = "%s:%s"\n' "$user" "$token" | curl --config - "${args[@]}" || true)
+      if [[ "$code" != 2* ]]; then
+        printf 'forgejo-pr: HTTP %s\n' "${code:-none}" >&2
+        cat "$payload.http" >&2
+        return 1
+      fi
+      cat "$payload.http"
+    }
+
+    jqn() { jq -r "$@" 2>/dev/null || true; }
+
+    usage() {
+      sed -n '2,6p' "$0" | sed 's/^    # \{0,1\}//' >&2
+      exit 2
+    }
+
+    [[ $# -ge 2 ]] || usage
+    [[ "$1" == "pr" ]] || die "only 'pr' is supported"
+    action="$2"
+    shift 2
+
+    case "$action" in
+      list)
+        state="open"
+        while [[ $# -gt 0 ]]; do
+          case "$1" in
+            --state) state="${2:?}"; shift 2 ;;
+            *) die "unexpected argument: $1" ;;
+          esac
+        done
+        call GET "pulls?state=$state&limit=50" |
+          jq -r '.[] | "#\(.number)\t\(.state)\t\(.head.ref) -> \(.base.ref)\t\(.title)"'
+        ;;
+      view)
+        [[ $# -eq 1 ]] || usage
+        call GET "pulls/$1" |
+          jq -r '"#\(.number) \(.title)\nstate: \(.state)  mergeable: \(.mergeable)\n\(.head.ref) -> \(.base.ref)\n\(.html_url)\n\n\(.body)"'
+        ;;
+      create)
+        title="" body_file="" base="main" head=""
+        while [[ $# -gt 0 ]]; do
+          case "$1" in
+            --title) title="${2:?}"; shift 2 ;;
+            --body-file) body_file="${2:?}"; shift 2 ;;
+            --base) base="${2:?}"; shift 2 ;;
+            --head) head="${2:?}"; shift 2 ;;
+            *) die "unexpected argument: $1" ;;
+          esac
+        done
+        [[ -n "$title" && -n "$body_file" ]] || usage
+        [[ -r "$body_file" ]] || die "cannot read $body_file"
+        [[ -n "$head" ]] || die "--head <branch> is required (never open PRs from main)"
+        [[ "$head" != "main" ]] || die "refusing to open a PR from main"
+        jq -n --arg t "$title" --arg b "$(cat "$body_file")" \
+              --arg base "$base" --arg head "$head" \
+              '{title:$t, body:$b, base:$base, head:$head}' > "$payload"
+        call POST "pulls" "$payload" | jq -r '"opened #\(.number): \(.html_url)"'
+        ;;
+      comment)
+        [[ $# -eq 3 && "$2" == "--body-file" ]] || usage
+        [[ -r "$3" ]] || die "cannot read $3"
+        jq -n --arg b "$(cat "$3")" '{body:$b}' > "$payload"
+        call POST "issues/$1/comments" "$payload" | jq -r '"comment id \(.id)"'
+        ;;
+      *)
+        usage
+        ;;
+    esac
+{{- end }}

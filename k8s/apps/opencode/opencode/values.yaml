@@ -1,3 +1,25 @@
+# OpenCode server.
+#
+# Approval model: this pod is expected to run unattended, so the shell
+# permission list in templates/configmap.yaml is an allowlist rather than
+# "ask for everything". That list is a convenience and blast-radius limiter,
+# NOT the security boundary -- a shell allowlist can always be sidestepped by
+# chaining commands. The actual guarantees are enforced outside the agent:
+#
+#   1. Kubernetes: the service account is bound to a read-only ClusterRole
+#      (templates/rbac.yaml). No Secrets, no writes, whatever the agent tries.
+#   2. Forgejo: `main` must be a protected branch (Settings -> Branches), with
+#      direct pushes and force pushes disabled. The bot can open PRs but not
+#      land them. That has to be configured in Forgejo; it is not expressed
+#      here because it is repository state, not chart state.
+#   3. Credentials: a dedicated bot account with a scoped PAT, injected from
+#      Bitwarden. Never a personal token.
+#   4. Network: Cilium egress allowlist (templates/networkpolicy.yaml), so the
+#      pod can only talk to Forgejo, the model APIs and package registries.
+#
+# If you re-enable approvals, raise "shell *" from deny back to ask and delete
+# the allowlist entries you do not want.
+
 home-ops-app-chart:
   replicaCount: 1
 
@@ -67,11 +89,13 @@ home-ops-app-chart:
           set -eu
           mkdir -p /tools/etc/apk/keys /tmp/apk
           cp /etc/apk/keys/* /tools/etc/apk/keys/
+          # helm/kustomize/yq-go come from community; without them the agent
+          # cannot render or lint the charts it is asked to change.
           apk add --root /tools --initdb --no-cache --no-scripts \
             --cache-dir /tmp/apk \
             --repository https://dl-cdn.alpinelinux.org/alpine/v3.24/main \
             --repository https://dl-cdn.alpinelinux.org/alpine/v3.24/community \
-            git bash curl jq kubectl tzdata
+            git bash curl jq kubectl tzdata helm kustomize yq-go ca-certificates
           chmod -R a+rX /tools
       env:
         - name: TMPDIR
@@ -176,7 +200,7 @@ home-ops-app-chart:
     - name: SHELL
       value: /tools/bin/bash
     - name: PATH
-      value: /tools/bin:/tools/usr/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      value: /opt/opencode/bin:/tools/bin:/tools/usr/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     - name: LD_LIBRARY_PATH
       value: /tools/usr/lib:/tools/lib:/usr/lib
     - name: GIT_EXEC_PATH
@@ -203,6 +227,12 @@ home-ops-app-chart:
     # url.<base>.insteadOf rewrite below, which maps it onto this Service.
     - name: FORGEJO_INSTANCE_URL
       value: http://forgejo-http.forgejo.svc.cluster.local:3000
+    # Used by the `forgejo-pr` helper (templates/pr-helper.yaml), which is the
+    # only Forgejo write path the agent is allowed to take.
+    - name: FORGEJO_API_URL
+      value: http://forgejo-http.forgejo.svc.cluster.local:3000
+    - name: FORGEJO_REPO
+      value: V3RO/home-ops
     - name: GIT_TERMINAL_PROMPT
       value: "0"
     # Credentials come from the ExternalSecret injected via envFrom. The
@@ -323,6 +353,10 @@ home-ops-app-chart:
     - name: agents
       configMap:
         name: opencode-agents
+    - name: bin
+      configMap:
+        name: opencode-bin
+        defaultMode: 0755
 
   extraVolumeMounts:
     - name: tools
@@ -336,6 +370,9 @@ home-ops-app-chart:
     - name: agents
       mountPath: /data/config/opencode/agents
       readOnly: true
+    - name: bin
+      mountPath: /opt/opencode/bin
+      readOnly: true
 
 # CiliumNetworkPolicy is used instead of a plain NetworkPolicy because the
 # egress allowlist is hostname-based. The policy lives in templates/.
@@ -348,6 +385,11 @@ networkPolicy:
     namespace: forgejo
     service: forgejo-http
     port: 3000
+
+# Installs the read-only `forgejo-pr` helper into the agent's PATH. It can
+# list/view/open PRs and comment on issues, and nothing else.
+prHelper:
+  enabled: true
 
 # Read-only pod/event access for the ops-triage agent. Remove this if you do
 # not want the agent to see cluster logs, and set
