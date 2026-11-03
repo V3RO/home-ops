@@ -49,6 +49,9 @@ spec:
               protocol: UDP
             - port: "53"
               protocol: TCP
+          rules:
+            dns:
+              - matchPattern: "*"
     # kubectl in the ops-triage agent. RBAC limits it to read-only pod/event
     # access; NetworkPolicy only decides that the API server is reachable.
     - toEntities:
