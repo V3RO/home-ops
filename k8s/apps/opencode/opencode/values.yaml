@@ -67,7 +67,7 @@ home-ops-app-chart:
           set -eu
           mkdir -p /tools/etc/apk/keys /tmp/apk
           cp /etc/apk/keys/* /tools/etc/apk/keys/
-          apk add --root /tools --initdb --no-cache \
+          apk add --root /tools --initdb --no-cache --no-scripts \
             --cache-dir /tmp/apk \
             --repository https://dl-cdn.alpinelinux.org/alpine/v3.24/main \
             --repository https://dl-cdn.alpinelinux.org/alpine/v3.24/community \
