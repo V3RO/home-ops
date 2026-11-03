@@ -15,6 +15,9 @@ jellyfin:
     - name: data
       persistentVolumeClaim:
         claimName: media-data
+    - name: encoding-config
+      configMap:
+        name: jellyfin-encoding
   volumeMounts:
     - name: data
       mountPath: /data
@@ -22,8 +25,32 @@ jellyfin:
   resources:
     requests:
       ephemeral-storage: 1Gi
+      # Intel iGPU via the intel-gpu-plugin; this also injects /dev/dri
+      # (renderD128) through CDI for Quick Sync.
+      gpu.intel.com/i915: "1"
     limits:
       ephemeral-storage: 10Gi
+      gpu.intel.com/i915: "1"
+  nodeSelector:
+    intel.feature.node.kubernetes.io/gpu: "true"
+  extraInitContainers:
+    # The encoding settings live in the config PVC, so Jellyfin cannot be
+    # configured for Quick Sync through chart values alone. Seed the file on
+    # every start to keep the settings declarative.
+    - name: configure-encoding
+      image: busybox:1.38
+      command:
+        - sh
+        - -c
+        - |
+          mkdir -p /config/config
+          cp /encoding/encoding.xml /config/config/encoding.xml
+      volumeMounts:
+        - name: config
+          mountPath: /config
+        - name: encoding-config
+          mountPath: /encoding
+          readOnly: true
 
   jellyfin:
     env:
