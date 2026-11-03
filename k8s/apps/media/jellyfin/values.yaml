@@ -29,7 +29,9 @@ jellyfin:
       # (renderD128) through CDI for Quick Sync.
       gpu.intel.com/i915: "1"
     limits:
-      ephemeral-storage: 10Gi
+      # /cache lives on the node disk. QSV transcodes can fill it much faster
+      # than software transcoding, so keep headroom above the old 10Gi limit.
+      ephemeral-storage: 30Gi
       gpu.intel.com/i915: "1"
   nodeSelector:
     intel.feature.node.kubernetes.io/gpu: "true"

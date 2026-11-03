@@ -13,10 +13,10 @@ data:
       <DownMixAudioBoost>2</DownMixAudioBoost>
       <DownMixStereoAlgorithm>None</DownMixStereoAlgorithm>
       <MaxMuxingQueueSize>2048</MaxMuxingQueueSize>
-      <EnableThrottling>false</EnableThrottling>
+      <EnableThrottling>true</EnableThrottling>
       <ThrottleDelaySeconds>180</ThrottleDelaySeconds>
-      <EnableSegmentDeletion>false</EnableSegmentDeletion>
-      <SegmentKeepSeconds>720</SegmentKeepSeconds>
+      <EnableSegmentDeletion>true</EnableSegmentDeletion>
+      <SegmentKeepSeconds>300</SegmentKeepSeconds>
       <HardwareAccelerationType>qsv</HardwareAccelerationType>
       <EncoderAppPathDisplay>/usr/lib/jellyfin-ffmpeg/ffmpeg</EncoderAppPathDisplay>
       <VaapiDevice>/dev/dri/renderD128</VaapiDevice>
