@@ -196,20 +196,30 @@ home-ops-app-chart:
       value: "1"
     - name: FORGEJO_USERNAME
       value: opencode-bot
+    # Use the in-cluster Service, not the public hostname. git.schober.dev
+    # resolves to the istio-ingress-internal Gateway VIP, and Cilium drops
+    # pod-originated traffic to that VIP (the connection hangs until it times
+    # out). The public name keeps working for browsers and for the
+    # url.<base>.insteadOf rewrite below, which maps it onto this Service.
     - name: FORGEJO_INSTANCE_URL
-      value: https://git.schober.dev
+      value: http://forgejo-http.forgejo.svc.cluster.local:3000
     - name: GIT_TERMINAL_PROMPT
       value: "0"
     # Credentials come from the ExternalSecret injected via envFrom. The
     # helper below keeps the PAT out of .git/config and ~/.git-credentials.
     - name: GIT_CONFIG_COUNT
-      value: "3"
+      value: "4"
     - name: GIT_CONFIG_KEY_0
       value: credential.helper
     - name: GIT_CONFIG_VALUE_0
       # Only answer for Forgejo. Without the host check, git would happily
-      # send this PAT to any HTTPS remote the agent is asked to clone.
-      value: '!f() { [ "$1" = "get" ] || exit 0; host=""; while IFS="=" read -r key value; do [ "$key" = "host" ] && host="$value"; done; [ "$host" = "git.schober.dev" ] || exit 0; echo "username=${FORGEJO_USERNAME}"; echo "password=${FORGEJO_TOKEN}"; }; f "$@"'
+      # send this PAT to any HTTPS remote the agent is asked to clone. Both
+      # the public name and the in-cluster Service are accepted: the former
+      # because agents copy URLs from the web UI, the latter because it is the
+      # only host that is actually reachable (see FORGEJO_INSTANCE_URL).
+      # ${host%%:*} strips the ":3000" that git includes for a non-default
+      # port; without that the in-cluster host never matches.
+      value: '!f() { [ "$1" = "get" ] || exit 0; host=""; while IFS="=" read -r key value; do [ "$key" = "host" ] && host="$value"; done; case "${host%%:*}" in git.schober.dev|forgejo-http.forgejo.svc.cluster.local) ;; *) exit 0 ;; esac; echo "username=${FORGEJO_USERNAME}"; echo "password=${FORGEJO_TOKEN}"; }; f "$@"'
     - name: GIT_CONFIG_KEY_1
       value: user.name
     - name: GIT_CONFIG_VALUE_1
@@ -218,6 +228,15 @@ home-ops-app-chart:
       value: user.email
     - name: GIT_CONFIG_VALUE_2
       value: opencode@schober.dev
+    # Rewrite the public Forgejo URL onto the reachable in-cluster Service.
+    # The public hostname resolves to the internal Gateway VIP, which drops
+    # pod-originated traffic, so a plain `git clone https://git.schober.dev/...`
+    # hangs. Rewriting here means agents can use the URLs they find in the web
+    # UI, docs and issue threads without knowing about the Service name.
+    - name: GIT_CONFIG_KEY_3
+      value: url.http://forgejo-http.forgejo.svc.cluster.local:3000/.insteadOf
+    - name: GIT_CONFIG_VALUE_3
+      value: https://git.schober.dev/
 
   resources:
     requests:
@@ -322,6 +341,13 @@ home-ops-app-chart:
 # egress allowlist is hostname-based. The policy lives in templates/.
 networkPolicy:
   enabled: true
+  # Forgejo is reached through its in-cluster Service. Pod-originated traffic
+  # to git.schober.dev resolves to the istio-ingress-internal Gateway VIP,
+  # which the policy does not (and should not) allow.
+  forgejo:
+    namespace: forgejo
+    service: forgejo-http
+    port: 3000
 
 # Read-only pod/event access for the ops-triage agent. Remove this if you do
 # not want the agent to see cluster logs, and set

@@ -64,13 +64,16 @@ spec:
               protocol: TCP
             - port: "6443"
               protocol: TCP
-    # Model providers, Forgejo and package/tooling registries.
+    # Model providers and package/tooling registries.
+    # git.schober.dev is intentionally absent: it resolves to the
+    # istio-ingress-internal Gateway VIP and pod-originated traffic to that
+    # VIP is dropped, so an FQDN allow would look correct and still hang.
+    # Forgejo is reached via its Service instead; see the last rule.
     - toFQDNs:
         - matchName: api.deepseek.com
         - matchName: api.moonshot.ai
         - matchName: api.moonshot.cn
         - matchName: models.dev
-        - matchName: git.schober.dev
         - matchName: dl-cdn.alpinelinux.org
         - matchName: registry.npmjs.org
         - matchName: pypi.org
@@ -94,11 +97,15 @@ spec:
         - ports:
             - port: "443"
               protocol: TCP
-    - toEndpoints:
-        - matchLabels:
-            io.kubernetes.pod.namespace: forgejo
+    # Forgejo, by Service rather than by namespace: a namespace-wide rule
+    # would also allow the database pods on 5432. The agent only needs the
+    # HTTP(S) Service that git and the Forgejo API use.
+    - toServices:
+        - kubeService:
+            name: {{ .Values.networkPolicy.forgejo.service }}
+            namespace: {{ .Values.networkPolicy.forgejo.namespace }}
       toPorts:
         - ports:
-            - port: "3000"
+            - port: "{{ .Values.networkPolicy.forgejo.port }}"
               protocol: TCP
 {{- end }}

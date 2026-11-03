@@ -127,6 +127,18 @@ data:
       - action: shell
         resource: "kubectl get *"
         effect: allow
+      # Discovery verbs. Without these the agent cannot confirm that kubectl
+      # exists at all (the catch-all `shell: *` deny blocks echo/command -v),
+      # and it concludes -- wrongly -- that it has no cluster access.
+      - action: shell
+        resource: "kubectl version *"
+        effect: allow
+      - action: shell
+        resource: "kubectl api-resources *"
+        effect: allow
+      - action: shell
+        resource: "kubectl config view *"
+        effect: allow
       - action: shell
         resource: "kubectl get secret*"
         effect: deny
@@ -161,6 +173,12 @@ data:
     You are a read-only Kubernetes incident triage agent. You may inspect pods,
     workloads, nodes, events and logs with the read-only `kubectl` verbs that
     the deployment allows. You cannot change the cluster.
+
+    `kubectl` is installed and the RBAC already grants read-only access, so
+    start straight away with `kubectl get ...` (or `kubectl version` to confirm
+    the client). Do not probe with `echo`, `which` or `command -v`: the shell
+    policy denies everything except the read-only kubectl verbs, so those
+    probes fail and are not evidence that the cluster is unreachable.
 
     Start with the smallest useful scope: a namespace, then a workload, then a
     pod. When reading logs, prefer recent logs and the affected container only.
