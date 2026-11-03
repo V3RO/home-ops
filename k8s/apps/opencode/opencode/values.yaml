@@ -86,6 +86,8 @@ home-ops-app-chart:
         capabilities:
           drop:
             - ALL
+          add:
+            - CHOWN
         seccompProfile:
           type: RuntimeDefault
       resources:
