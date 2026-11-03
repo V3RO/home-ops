@@ -104,6 +104,19 @@ spec:
               url: http://tempo.monitoring.svc.cluster.local:3200
               access: proxy
 
+      # Discover labeled dashboard ConfigMaps. The CNPG operator chart creates
+      # the official CloudNativePG dashboard as a ConfigMap with
+      # grafana_dashboard=1 in this namespace.
+      sidecar:
+        dashboards:
+          enabled: true
+          label: grafana_dashboard
+          labelValue: "1"
+          searchNamespace: monitoring
+          provider:
+            folder: CloudNativePG
+            allowUiUpdates: true
+
       # Configure Istio dashboards
       dashboardProviders:
         dashboardproviders.yaml:

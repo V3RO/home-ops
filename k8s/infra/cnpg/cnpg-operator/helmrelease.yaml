@@ -25,4 +25,11 @@ spec:
       remediateLastFailure: true
     crds: CreateReplace
   values:
+    # The operator chart bundles the official CloudNativePG Grafana dashboard
+    # as a subchart (charts/cluster). Creating it in the Grafana namespace lets
+    # Grafana's dashboard sidecar discover it via the grafana_dashboard=1 label.
+    monitoring:
+      grafanaDashboard:
+        create: true
+        namespace: monitoring
 

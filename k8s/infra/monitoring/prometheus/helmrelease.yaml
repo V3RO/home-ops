@@ -250,6 +250,10 @@ spec:
             # Cluster object state: pod phases, deployment/statefulset replica
             # counts, PVC status, cronjob history, node conditions.
             - job_name: 'kube-state-metrics'
+              # Keep KSM's own namespace/pod labels (the monitored object)
+              # instead of renaming them to exported_*. The CNPG dashboard
+              # (and the standard k8s dashboards) filter on namespace/pod.
+              honor_labels: true
               kubernetes_sd_configs:
                 - role: endpoints
                   namespaces:
@@ -259,6 +263,46 @@ spec:
                 - source_labels: [__meta_kubernetes_service_label_app_kubernetes_io_name]
                   action: keep
                   regex: kube-state-metrics
+                - source_labels: [__meta_kubernetes_pod_name]
+                  target_label: pod
+                - source_labels: [__meta_kubernetes_namespace]
+                  target_label: namespace
+
+            # CloudNativePG instance metrics. The exporter listens on the
+            # postgres container's "metrics" port (9187). CNPG exposes the
+            # cluster label; pod/namespace are added here because the CNPG
+            # dashboard filters on them.
+            - job_name: 'cnpg'
+              kubernetes_sd_configs:
+                - role: pod
+              relabel_configs:
+                - source_labels: [__meta_kubernetes_pod_label_cnpg_io_cluster]
+                  action: keep
+                  regex: .+
+                - source_labels: [__meta_kubernetes_pod_container_port_name]
+                  action: keep
+                  regex: metrics
+                - source_labels: [__meta_kubernetes_pod_name]
+                  target_label: pod
+                - source_labels: [__meta_kubernetes_namespace]
+                  target_label: namespace
+
+            # CNPG operator metrics (controller-runtime) on port 8080. Needed
+            # for the dashboard's operator/alerts row and operatorNamespace
+            # variable; the operator pod has no prometheus.io annotations.
+            - job_name: 'cnpg-operator'
+              kubernetes_sd_configs:
+                - role: pod
+                  namespaces:
+                    names:
+                      - cnpg
+              relabel_configs:
+                - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+                  action: keep
+                  regex: cloudnative-pg
+                - source_labels: [__meta_kubernetes_pod_container_port_name]
+                  action: keep
+                  regex: metrics
                 - source_labels: [__meta_kubernetes_pod_name]
                   target_label: pod
                 - source_labels: [__meta_kubernetes_namespace]
@@ -408,4 +452,13 @@ spec:
                 - source_labels: [__meta_kubernetes_pod_name]
                   action: replace
                   target_label: pod_name
+
+        # Recording rule expected by the CNPG dashboard's CPU panels. The
+        # cAdvisor metrics come from the kubernetes-nodes-cadvisor job.
+        recording_rules.yml:
+          groups:
+            - name: cnpg
+              rules:
+                - record: node_namespace_pod_container:container_cpu_usage_seconds_total:sum_irate
+                  expr: sum by (namespace, pod, container) (irate(container_cpu_usage_seconds_total{job="kubernetes-nodes-cadvisor", image!="", container!=""}[5m]))
 
