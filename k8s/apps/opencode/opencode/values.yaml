@@ -133,11 +133,11 @@ home-ops-app-chart:
     - -c
     - |
       cd /workspace
-      exec /usr/local/bin/opencode serve --hostname 0.0.0.0 --port 4096
+      exec /usr/local/bin/opencode serve --hostname 127.0.0.1 --port 4098
 
   ports:
-    - name: http
-      containerPort: 4096
+    - name: opencode
+      containerPort: 4098
       protocol: TCP
 
   service:
@@ -147,6 +147,63 @@ home-ops-app-chart:
         port: 4096
         targetPort: http
         protocol: TCP
+
+  # OpenCode v2 always requires a server password. When OPENCODE_PASSWORD is
+  # unset it generates a random one and prints it to the log, which defeats
+  # the Authentik-only setup. Keep a fixed password in Bitwarden and have this
+  # sidecar inject it, so users only see the Authentik login.
+  extraContainers:
+    - name: auth-proxy
+      image: nginxinc/nginx-unprivileged:1.27-alpine@sha256:28d91bdce70ad09025ea901458fdd149259d8e05982ade79d4ef2c0d9470eb48
+      command:
+        - /bin/sh
+        - -c
+      args:
+        - |
+          set -eu
+          [ -n "$OPENCODE_PASSWORD" ] || {
+            echo "OPENCODE_PASSWORD is empty; refusing to start" >&2
+            exit 1
+          }
+          mkdir -p /tmp/proxy /tmp/client_body /tmp/fastcgi /tmp/uwsgi /tmp/scgi
+          basic="$(printf 'opencode:%s' "$OPENCODE_PASSWORD" | base64 | tr -d '\n')"
+          sed "s|__BASIC_AUTH__|${basic}|" \
+            /etc/nginx/template/nginx.conf > /tmp/nginx.conf
+          exec nginx -c /tmp/nginx.conf -g 'daemon off;'
+      env:
+        - name: OPENCODE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: opencode-secrets
+              key: OPENCODE_PASSWORD
+      ports:
+        - name: http
+          containerPort: 4096
+          protocol: TCP
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        capabilities:
+          drop:
+            - ALL
+        seccompProfile:
+          type: RuntimeDefault
+      resources:
+        requests:
+          cpu: 20m
+          memory: 32Mi
+        limits:
+          cpu: 200m
+          memory: 128Mi
+      volumeMounts:
+        - name: auth-proxy-config
+          mountPath: /etc/nginx/template
+          readOnly: true
+        - name: tmp
+          mountPath: /tmp
 
   serviceAccount:
     create: false
@@ -207,10 +264,10 @@ home-ops-app-chart:
       value: /tools/usr/libexec/git-core
     - name: OPENCODE_CONFIG
       value: /etc/opencode/opencode.json
-    # No OPENCODE_SERVER_PASSWORD/OPENCODE_SERVER_USERNAME on purpose: the
-    # server itself must not require a second set of credentials. Access is
-    # authenticated by Authentik forward-auth on the HTTPRoute (homelab-admins
-    # only), and the CiliumNetworkPolicy only admits the internal Gateway.
+    # OpenCode v2 always requires a password; if it is unset the server
+    # generates a random one per start. The fixed value arrives through
+    # envFrom (OPENCODE_PASSWORD) and is injected by the auth-proxy sidecar.
+    # Users authenticate with Authentik; the local password is internal.
     # Do not silently fall back to free/community models if a paid key fails.
     - name: OPENCODE_DISABLE_FREE_MODELS
       value: "1"
@@ -280,21 +337,27 @@ home-ops-app-chart:
       memory: 8Gi
       ephemeral-storage: 10Gi
 
+  # The probes belong to the main opencode container, which only declares
+  # port 4098. Port 4096 belongs to the auth-proxy sidecar, and named ports
+  # are scoped to the container that declares them, so use the numeric port.
   startupProbe:
-    tcpSocket:
-      port: http
+    httpGet:
+      path: /api/info
+      port: 4096
     periodSeconds: 5
     failureThreshold: 60
   livenessProbe:
-    tcpSocket:
-      port: http
+    httpGet:
+      path: /api/info
+      port: 4096
     initialDelaySeconds: 30
     periodSeconds: 30
     timeoutSeconds: 5
     failureThreshold: 3
   readinessProbe:
-    tcpSocket:
-      port: http
+    httpGet:
+      path: /api/info
+      port: 4096
     initialDelaySeconds: 10
     periodSeconds: 10
     timeoutSeconds: 5
@@ -332,6 +395,11 @@ home-ops-app-chart:
         - secretKey: FORGEJO_TOKEN
           remoteRef:
             key: opencode-forgejo-token
+        # Internal password injected by the auth-proxy sidecar. Users never
+        # type this; Authentik is the only interactive login.
+        - secretKey: OPENCODE_PASSWORD
+          remoteRef:
+            key: opencode-server-password
       injectAsEnv: true
 
   home-ops-route-chart:
@@ -362,6 +430,9 @@ home-ops-app-chart:
       configMap:
         name: opencode-bin
         defaultMode: 0755
+    - name: auth-proxy-config
+      configMap:
+        name: opencode-auth-proxy
 
   extraVolumeMounts:
     - name: tools
