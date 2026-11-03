@@ -1,0 +1,10 @@
+apiVersion: v2
+name: opencode
+description: "OpenCode server for the homelab, with sandboxed tools and repo access"
+type: application
+version: 0.1.0
+appVersion: "2.2.5"
+dependencies:
+  - name: home-ops-app-chart
+    version: 0.3.2
+    repository: oci://zot.schober.dev/charts

@@ -1,0 +1,326 @@
+home-ops-app-chart:
+  replicaCount: 1
+
+  strategy:
+    type: Recreate
+
+  image:
+    repository: ghcr.io/anomalyco/opencode
+    # Pinned by digest. Renovate can bump this in the usual way; keep the
+    # digest so a moved tag cannot silently change the agent runtime.
+    tag: "2.2.5@sha256:1690aad69864d2f6714772d1e040918feebc6df5286d2bd7e181fbb35d12d4a9"
+    pullPolicy: IfNotPresent
+
+  initContainers:
+    - name: prepare-data
+      image: busybox:1.38
+      command:
+        - /bin/sh
+        - -c
+      args:
+        - |
+          set -eu
+          mkdir -p /data/home \
+            /data/config/opencode \
+            /data/state/opencode \
+            /data/cache/opencode \
+            /data/share/opencode \
+            /workspace
+          chown 1000:1000 /data /workspace /data/home \
+            /data/config /data/config/opencode \
+            /data/state /data/state/opencode \
+            /data/cache /data/cache/opencode \
+            /data/share /data/share/opencode
+      securityContext:
+        runAsUser: 0
+        runAsNonRoot: false
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop:
+            - ALL
+        seccompProfile:
+          type: RuntimeDefault
+      resources:
+        requests:
+          cpu: 10m
+          memory: 16Mi
+        limits:
+          cpu: 100m
+          memory: 64Mi
+      volumeMounts:
+        - name: data
+          mountPath: /data
+        - name: workspace
+          mountPath: /workspace
+
+    - name: install-tools
+      # Must match the Alpine release of the OpenCode image (currently 3.24.3).
+      image: alpine:3.24.3
+      command:
+        - /bin/sh
+        - -c
+      args:
+        - |
+          set -eu
+          mkdir -p /tools/etc/apk/keys /tmp/apk
+          cp /etc/apk/keys/* /tools/etc/apk/keys/
+          apk add --root /tools --initdb --no-cache \
+            --cache-dir /tmp/apk \
+            --repository https://dl-cdn.alpinelinux.org/alpine/v3.24/main \
+            --repository https://dl-cdn.alpinelinux.org/alpine/v3.24/community \
+            git bash curl jq kubectl tzdata
+          chmod -R a+rX /tools
+      env:
+        - name: TMPDIR
+          value: /tmp
+        - name: APK_CACHE_DIR
+          value: /tmp/apk
+      securityContext:
+        runAsUser: 0
+        runAsNonRoot: false
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop:
+            - ALL
+        seccompProfile:
+          type: RuntimeDefault
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 500m
+          memory: 256Mi
+      volumeMounts:
+        - name: tools
+          mountPath: /tools
+        - name: tmp
+          mountPath: /tmp
+
+  command:
+    - /bin/sh
+  args:
+    - -c
+    - |
+      cd /workspace
+      exec /usr/local/bin/opencode serve --hostname 0.0.0.0 --port 4096
+
+  ports:
+    - name: http
+      containerPort: 4096
+      protocol: TCP
+
+  service:
+    type: ClusterIP
+    ports:
+      - name: http
+        port: 4096
+        targetPort: http
+        protocol: TCP
+
+  serviceAccount:
+    create: false
+    name: opencode
+
+  # Roll the pod when a Bitwarden-backed secret changes (e.g. server password
+  # or PAT rotation). Sessions and checkouts are on PVCs, so a restart is safe.
+  podAnnotations:
+    reloader.stakater.com/auto: "true"
+
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    fsGroupChangePolicy: OnRootMismatch
+    seccompProfile:
+      type: RuntimeDefault
+
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    capabilities:
+      drop:
+        - ALL
+    seccompProfile:
+      type: RuntimeDefault
+
+  env:
+    - name: HOME
+      value: /data/home
+    - name: XDG_CONFIG_HOME
+      value: /data/config
+    - name: XDG_DATA_HOME
+      value: /data/share
+    - name: XDG_STATE_HOME
+      value: /data/state
+    - name: XDG_CACHE_HOME
+      value: /data/cache
+    - name: TMPDIR
+      value: /tmp
+    - name: TZ
+      value: Europe/Berlin
+    - name: TZDIR
+      value: /tools/usr/share/zoneinfo
+    - name: LANG
+      value: C.UTF-8
+    - name: SHELL
+      value: /tools/bin/bash
+    - name: PATH
+      value: /tools/bin:/tools/usr/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    - name: LD_LIBRARY_PATH
+      value: /tools/usr/lib:/tools/lib:/usr/lib
+    - name: GIT_EXEC_PATH
+      value: /tools/usr/libexec/git-core
+    - name: OPENCODE_CONFIG
+      value: /etc/opencode/opencode.json
+    - name: OPENCODE_SERVER_USERNAME
+      value: opencode
+    # Do not silently fall back to free/community models if a paid key fails.
+    - name: OPENCODE_DISABLE_FREE_MODELS
+      value: "1"
+    # The image is pinned and the root filesystem is read-only; runtime
+    # self-updates would either fail or write outside the persistence mounts.
+    - name: OPENCODE_DISABLE_AUTOUPDATE
+      value: "1"
+    - name: OPENCODE_DISABLE_CLAUDE_CODE
+      value: "1"
+    - name: FORGEJO_USERNAME
+      value: opencode-bot
+    - name: FORGEJO_INSTANCE_URL
+      value: https://git.schober.dev
+    - name: GIT_TERMINAL_PROMPT
+      value: "0"
+    # Credentials come from the ExternalSecret injected via envFrom. The
+    # helper below keeps the PAT out of .git/config and ~/.git-credentials.
+    - name: GIT_CONFIG_COUNT
+      value: "3"
+    - name: GIT_CONFIG_KEY_0
+      value: credential.helper
+    - name: GIT_CONFIG_VALUE_0
+      # Only answer for Forgejo. Without the host check, git would happily
+      # send this PAT to any HTTPS remote the agent is asked to clone.
+      value: '!f() { [ "$1" = "get" ] || exit 0; host=""; while IFS="=" read -r key value; do [ "$key" = "host" ] && host="$value"; done; [ "$host" = "git.schober.dev" ] || exit 0; echo "username=${FORGEJO_USERNAME}"; echo "password=${FORGEJO_TOKEN}"; }; f "$@"'
+    - name: GIT_CONFIG_KEY_1
+      value: user.name
+    - name: GIT_CONFIG_VALUE_1
+      value: opencode-bot
+    - name: GIT_CONFIG_KEY_2
+      value: user.email
+    - name: GIT_CONFIG_VALUE_2
+      value: opencode@schober.dev
+
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+      ephemeral-storage: 1Gi
+    limits:
+      cpu: 4
+      memory: 8Gi
+      ephemeral-storage: 10Gi
+
+  startupProbe:
+    tcpSocket:
+      port: http
+    periodSeconds: 5
+    failureThreshold: 60
+  livenessProbe:
+    tcpSocket:
+      port: http
+    initialDelaySeconds: 30
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readinessProbe:
+    tcpSocket:
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  terminationGracePeriodSeconds: 120
+
+  persistence:
+    data:
+      enabled: true
+      storageClass: longhorn
+      accessModes:
+        - ReadWriteOnce
+      size: 5Gi
+      mountPath: /data
+    workspace:
+      enabled: true
+      storageClass: longhorn
+      accessModes:
+        - ReadWriteOnce
+      size: 10Gi
+      mountPath: /workspace
+
+  externalSecrets:
+    secrets:
+      enabled: true
+      refreshInterval: 1h0m0s
+      secretStoreRef:
+        kind: ClusterSecretStore
+        name: bitwarden-app-secrets
+      data:
+        - secretKey: DEEPSEEK_API_KEY
+          remoteRef:
+            key: opencode-deepseek-api-key
+        - secretKey: FORGEJO_TOKEN
+          remoteRef:
+            key: opencode-forgejo-token
+        - secretKey: OPENCODE_SERVER_PASSWORD
+          remoteRef:
+            key: opencode-server-password
+      injectAsEnv: true
+
+  home-ops-route-chart:
+    enabled: true
+    host: opencode.schober.dev
+    backend:
+      port: 4096
+
+  extraVolumes:
+    - name: tools
+      emptyDir: {}
+    - name: tmp
+      emptyDir:
+        sizeLimit: 2Gi
+    - name: config
+      configMap:
+        name: opencode-config
+    - name: agents
+      configMap:
+        name: opencode-agents
+
+  extraVolumeMounts:
+    - name: tools
+      mountPath: /tools
+      readOnly: true
+    - name: tmp
+      mountPath: /tmp
+    - name: config
+      mountPath: /etc/opencode
+      readOnly: true
+    - name: agents
+      mountPath: /data/config/opencode/agents
+      readOnly: true
+
+# CiliumNetworkPolicy is used instead of a plain NetworkPolicy because the
+# egress allowlist is hostname-based. The policy lives in templates/.
+networkPolicy:
+  enabled: true
+
+# Read-only pod/event access for the ops-triage agent. Remove this if you do
+# not want the agent to see cluster logs, and set
+# automountServiceAccountToken: false in templates/serviceaccount.yaml.
+rbac:
+  enabled: true
