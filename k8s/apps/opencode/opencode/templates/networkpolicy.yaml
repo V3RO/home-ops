@@ -97,13 +97,18 @@ spec:
         - ports:
             - port: "443"
               protocol: TCP
-    # Forgejo, by Service rather than by namespace: a namespace-wide rule
-    # would also allow the database pods on 5432. The agent only needs the
-    # HTTP(S) Service that git and the Forgejo API use.
+    # Forgejo, pinned to the Service rather than to the namespace. The old
+    # rule was already limited to port 3000, but it allowed every pod in the
+    # forgejo namespace on that port, including ones added later. Naming the
+    # Service keeps the grant to the HTTP endpoint git and the Forgejo API use.
+    #
+    # Cilium renamed this API: `kubeService`/`name` became
+    # `k8sService`/`serviceName`. The CRD schema rejects the old spelling
+    # outright, so the policy below is invalid and never applies.
     - toServices:
-        - kubeService:
-            name: {{ .Values.networkPolicy.forgejo.service }}
+        - k8sService:
             namespace: {{ .Values.networkPolicy.forgejo.namespace }}
+            serviceName: {{ .Values.networkPolicy.forgejo.service }}
       toPorts:
         - ports:
             - port: "{{ .Values.networkPolicy.forgejo.port }}"
