@@ -1,5 +1,5 @@
 claimName: media-data
-size: 2048Gi
+size: 4096Gi
 accessMode: ReadWriteMany
 storageClass: truenas-nfs-media
 
