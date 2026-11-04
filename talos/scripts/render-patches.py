@@ -32,7 +32,7 @@ def schematic_id() -> str:
 
 
 def render_install_image() -> None:
-    version = os.environ.get("TALOS_VERSION", "v1.14.0")
+    version = os.environ.get("TALOS_VERSION", "v1.14.5")
     image = f"factory.talos.dev/metal-installer/{schematic_id()}:{version}"
     (GENERATED / "install-image.yaml").write_text(
         "apiVersion: v1alpha1\n"

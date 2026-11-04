@@ -2,7 +2,9 @@ SHELL := /usr/bin/env bash
 .SHELLFLAGS := -eu -o pipefail -c
 
 CLUSTER_NAME     ?= talos
-TALOS_VERSION    ?= v1.14.0
+# 1.14.3 was the first release with Linux 6.18.56, the fix for the
+# ipv4 inet_opt use-after-free (CVE-2026-98432). 1.14.5 ships 6.18.58.
+TALOS_VERSION    ?= v1.14.5
 FACTORY_URL      ?= https://factory.talos.dev
 PLATFORM         ?= metal
 ARCH             ?= amd64
