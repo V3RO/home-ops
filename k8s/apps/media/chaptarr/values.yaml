@@ -43,6 +43,10 @@ home-ops-app-chart:
       value: http://gluetun-proxy.media.svc.cluster.local:8888
     - name: no_proxy
       value: localhost,127.0.0.1,.svc.cluster.local,.cluster.local
+    # Select OIDC as the auth method; the provider details are seeded into
+    # /config/config.xml by the init container below.
+    - name: Chaptarr__Auth__Method
+      value: oidc
     # CNPG database. Chaptarr expects three separate databases (main, log and
     # cache); the cluster helper creates the main one and creates the other two
     # through postInitSQL below.
@@ -80,6 +84,39 @@ home-ops-app-chart:
       volumeMounts:
         - name: data
           mountPath: /data
+    # Chaptarr reads the OIDC provider settings from config.xml, not from env.
+    # Seed them once so the first start comes up with SSO enabled. An existing
+    # config file is left alone.
+    - name: seed-oidc
+      image: busybox:1.38
+      envFrom:
+        - secretRef:
+            name: chaptarr-oidc
+      command:
+        - sh
+        - -c
+      args:
+        - |
+          CONFIG=/config/config.xml
+          if [ -s "$CONFIG" ]; then
+            exit 0
+          fi
+          mkdir -p /config
+          cat > "$CONFIG" <<EOF
+          <?xml version="1.0" encoding="utf-8"?>
+          <Config>
+            <OidcAuthority>https://auth.schober.dev/application/o/chaptarr/</OidcAuthority>
+            <OidcClientId>chaptarr</OidcClientId>
+            <OidcClientSecret>${OIDC_CLIENT_SECRET}</OidcClientSecret>
+            <OidcScopes>openid profile email</OidcScopes>
+            <OidcRequireEmailVerified>false</OidcRequireEmailVerified>
+            <AuthenticationMethod>oidc</AuthenticationMethod>
+          </Config>
+          EOF
+          chown 1000:1000 "$CONFIG"
+      volumeMounts:
+        - name: config
+          mountPath: /config
 
   resources:
     requests:
@@ -135,13 +172,29 @@ home-ops-app-chart:
       existingClaim: media-data
       mountPath: /data
 
+  externalSecrets:
+    oidc:
+      enabled: true
+      refreshInterval: 12h
+      secretStoreRef:
+        kind: ClusterSecretStore
+        name: bitwarden-app-secrets
+      data:
+        - secretKey: secret
+          remoteRef:
+            key: authentik-chaptarr-client-secret
+      template:
+        data:
+          OIDC_CLIENT_SECRET: "{{ .secret }}"
+      injectAsEnv: true
+
+  # OIDC is handled by Chaptarr itself, so the route is not wrapped in
+  # Authentik forward auth.
   home-ops-route-chart:
     enabled: true
     host: chaptarr.schober.dev
     backend:
       port: 80
-    authentik:
-      enabled: true
 
   # ──────────────────────────────────────────────
   # Database (home-ops-cnpg-cluster-chart)

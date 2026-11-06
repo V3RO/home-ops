@@ -120,6 +120,11 @@ spec:
               secretKeyRef:
                 name: authentik-secret
                 key: quiClientSecret
+          - name: AUTHENTIK_CHAPTARR_CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: authentik-secret
+                key: chaptarrClientSecret
           - name: AUTHENTIK_RENOVATE_CLIENT_SECRET
             valueFrom:
               secretKeyRef:
@@ -424,9 +429,17 @@ spec:
             access: admin
           - name: chaptarr
             provider:
+              kind: oauth2
               name: Chaptarr
-              externalHost: https://chaptarr.schober.dev
-              mode: forward_single
+              clientId: chaptarr
+              clientSecretEnv: AUTHENTIK_CHAPTARR_CLIENT_SECRET
+              grantTypes:
+                - authorization_code
+                - refresh_token
+              includeGroups: true
+              redirectUris:
+                - url: https://chaptarr.schober.dev/signin-oidc
+                  matchingMode: strict
             application:
               name: Chaptarr
               slug: chaptarr
@@ -727,6 +740,7 @@ spec:
         fluxClientSecret: authentik-flux-client-secret
         netbirdClientSecret: authentik-netbird-client-secret
         quiClientSecret: authentik-qui-client-secret
+        chaptarrClientSecret: authentik-chaptarr-client-secret
         renovateClientSecret: authentik-renovate-client-secret
         userPasswords:
           - username: V3RO
