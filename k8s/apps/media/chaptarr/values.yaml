@@ -98,21 +98,31 @@ home-ops-app-chart:
       args:
         - |
           CONFIG=/config/config.xml
-          if [ -s "$CONFIG" ]; then
-            exit 0
-          fi
           mkdir -p /config
-          cat > "$CONFIG" <<EOF
-          <?xml version="1.0" encoding="utf-8"?>
-          <Config>
-            <OidcAuthority>https://auth.schober.dev/application/o/chaptarr/</OidcAuthority>
-            <OidcClientId>chaptarr</OidcClientId>
-            <OidcClientSecret>${OIDC_CLIENT_SECRET}</OidcClientSecret>
-            <OidcScopes>openid profile email</OidcScopes>
-            <OidcRequireEmailVerified>false</OidcRequireEmailVerified>
-            <AuthenticationMethod>oidc</AuthenticationMethod>
-          </Config>
-          EOF
+          if [ ! -s "$CONFIG" ]; then
+            printf '%s\n' '<?xml version="1.0" encoding="utf-8"?>' '<Config>' '</Config>' > "$CONFIG"
+          fi
+          sed -i 's#<Config[[:space:]]*/>#<Config></Config>#' "$CONFIG"
+          if ! grep -q '</Config>' "$CONFIG"; then
+            echo "config.xml has no closing </Config> tag" >&2
+            exit 1
+          fi
+          # Replace any existing auth/OIDC values so a config.xml created by an
+          # earlier non-OIDC start still converges to OIDC on the next restart.
+          awk -v authority='https://auth.schober.dev/application/o/chaptarr/' -v client_id='chaptarr' -v client_secret="$OIDC_CLIENT_SECRET" '
+            /<OidcAuthority>|<OidcClientId>|<OidcClientSecret>|<OidcScopes>|<OidcAllowedEmails>|<OidcAllowedEmailDomains>|<OidcRequireEmailVerified>|<OidcAllowAnyVerifiedUser>|<AuthenticationMethod>/ { next }
+            /<\/Config>/ {
+              print "  <OidcAuthority>" authority "</OidcAuthority>"
+              print "  <OidcClientId>" client_id "</OidcClientId>"
+              print "  <OidcClientSecret>" client_secret "</OidcClientSecret>"
+              print "  <OidcScopes>openid profile email</OidcScopes>"
+              print "  <OidcAllowedEmailDomains>schober.dev</OidcAllowedEmailDomains>"
+              print "  <OidcRequireEmailVerified>false</OidcRequireEmailVerified>"
+              print "  <AuthenticationMethod>oidc</AuthenticationMethod>"
+            }
+            { print }
+          ' "$CONFIG" > "$CONFIG.tmp"
+          mv "$CONFIG.tmp" "$CONFIG"
           chown 1000:1000 "$CONFIG"
       volumeMounts:
         - name: config
