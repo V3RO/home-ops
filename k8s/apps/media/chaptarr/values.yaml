@@ -35,14 +35,16 @@ home-ops-app-chart:
       value: http://gluetun-proxy.media.svc.cluster.local:8888
     - name: HTTPS_PROXY
       value: http://gluetun-proxy.media.svc.cluster.local:8888
+    # Keep OIDC discovery off the VPN proxy: auth.schober.dev is the issuer and
+    # the backchannel must reach it directly.
     - name: NO_PROXY
-      value: localhost,127.0.0.1,.svc.cluster.local,.cluster.local
+      value: localhost,127.0.0.1,.svc.cluster.local,.cluster.local,auth.schober.dev,chaptarr.schober.dev
     - name: http_proxy
       value: http://gluetun-proxy.media.svc.cluster.local:8888
     - name: https_proxy
       value: http://gluetun-proxy.media.svc.cluster.local:8888
     - name: no_proxy
-      value: localhost,127.0.0.1,.svc.cluster.local,.cluster.local
+      value: localhost,127.0.0.1,.svc.cluster.local,.cluster.local,auth.schober.dev,chaptarr.schober.dev
     # Select OIDC as the auth method; the provider details are seeded into
     # /config/config.xml by the init container below.
     - name: Chaptarr__Auth__Method
