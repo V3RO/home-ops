@@ -244,3 +244,10 @@ home-ops-app-chart:
       credentials:
         accessKeyIdRef: chaptarr-backup-id
         secretAccessKeyRef: chaptarr-backup-secret
+
+# Read by this chart's own templates/network-policy.yaml (the app subchart
+# cannot see parent values, and home-ops-app-chart has no policy template).
+# Needed because the media namespace has a default-deny egress policy and OIDC
+# discovery must reach auth.schober.dev on TCP 443.
+networkPolicy:
+  enabled: true
