@@ -53,6 +53,7 @@ spec:
       - netbird
       - qui
       - homeassistant
+      - chaptarr
 
     dataClients:
       - name: forgejo-data

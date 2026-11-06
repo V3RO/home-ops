@@ -207,6 +207,7 @@ spec:
           - blueprint-shoko
           - blueprint-bazarr
           - blueprint-opencode
+          - blueprint-chaptarr
           - blueprint-valkey-admin
           - blueprint-thanos
           - blueprint-thanos-bucket
@@ -420,6 +421,17 @@ spec:
               name: OpenCode
               slug: opencode
               metaLaunchUrl: https://opencode.schober.dev
+            access: admin
+          - name: chaptarr
+            provider:
+              name: Chaptarr
+              externalHost: https://chaptarr.schober.dev
+              mode: forward_single
+            application:
+              name: Chaptarr
+              slug: chaptarr
+              metaLaunchUrl: https://chaptarr.schober.dev
+              icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/chaptarr.svg
             access: admin
           - name: jellyfin
             provider:

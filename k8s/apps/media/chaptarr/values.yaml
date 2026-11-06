@@ -1,0 +1,181 @@
+home-ops-app-chart:
+  image:
+    repository: chaptarr/chaptarr
+    tag: "0.9.965"
+    pullPolicy: IfNotPresent
+
+  # The database lives in CNPG below, but /config still holds config.xml,
+  # media covers, logs and local backups on a ReadWriteOnce volume, so keep a
+  # single writer.
+  strategy:
+    type: Recreate
+
+  # The entrypoint starts as root, creates/chowns the config directory and then
+  # drops to PUID:PGID with gosu. Do NOT set runAsNonRoot/runAsUser.
+  podSecurityContext:
+    fsGroup: 1000
+
+  ports:
+    - name: http
+      containerPort: 8789
+      protocol: TCP
+
+  env:
+    - name: PUID
+      value: "1000"
+    - name: PGID
+      value: "1000"
+    - name: TZ
+      value: Europe/Vienna
+    # Media files are shared with qBittorrent, Sonarr, Radarr and Jellyfin, so
+    # create them group-writable.
+    - name: UMASK
+      value: "002"
+    - name: HTTP_PROXY
+      value: http://gluetun-proxy.media.svc.cluster.local:8888
+    - name: HTTPS_PROXY
+      value: http://gluetun-proxy.media.svc.cluster.local:8888
+    - name: NO_PROXY
+      value: localhost,127.0.0.1,.svc.cluster.local,.cluster.local
+    - name: http_proxy
+      value: http://gluetun-proxy.media.svc.cluster.local:8888
+    - name: https_proxy
+      value: http://gluetun-proxy.media.svc.cluster.local:8888
+    - name: no_proxy
+      value: localhost,127.0.0.1,.svc.cluster.local,.cluster.local
+    # CNPG database. Chaptarr expects three separate databases (main, log and
+    # cache); the cluster helper creates the main one and creates the other two
+    # through postInitSQL below.
+    - name: Chaptarr__Postgres__Host
+      value: chaptarr-postgres-rw.media.svc.cluster.local
+    - name: Chaptarr__Postgres__Port
+      value: "5432"
+    - name: Chaptarr__Postgres__User
+      value: chaptarr
+    - name: Chaptarr__Postgres__Password
+      valueFrom:
+        secretKeyRef:
+          name: cnpg-chaptarr-credentials
+          key: password
+    - name: Chaptarr__Postgres__MainDb
+      value: chaptarr
+    - name: Chaptarr__Postgres__LogDb
+      value: chaptarr_log
+    - name: Chaptarr__Postgres__CacheDb
+      value: chaptarr_cache
+
+  # /data/media is root-owned on the TrueNAS export, so the app user cannot
+  # create the book libraries itself. Create them once at pod start, matching
+  # the paths the other media apps use.
+  initContainers:
+    - name: prepare-media
+      image: busybox:1.38
+      command:
+        - sh
+        - -c
+      args:
+        - |
+          mkdir -p /data/media/books/audiobooks /data/media/books/ebooks /data/downloads/books
+          chown 1000:1000 /data/media/books /data/media/books/audiobooks /data/media/books/ebooks /data/downloads/books
+      volumeMounts:
+        - name: data
+          mountPath: /data
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+
+  # /ping is anonymous and answers 200 as soon as the HTTP stack is up. The
+  # first start runs the database migrations, so allow up to 10 minutes for it.
+  startupProbe:
+    httpGet:
+      path: /ping
+      port: http
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 60
+
+  livenessProbe:
+    httpGet:
+      path: /ping
+      port: http
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  readinessProbe:
+    httpGet:
+      path: /ping
+      port: http
+    periodSeconds: 15
+    timeoutSeconds: 5
+
+  service:
+    ports:
+      - name: http
+        port: 80
+        targetPort: http
+        protocol: TCP
+
+  persistence:
+    config:
+      enabled: true
+      storageClass: longhorn
+      size: 5Gi
+      mountPath: /config
+    # The same RWX library volume qBittorrent, Jellyfin and the *arr apps use.
+    # Configure the root folders in the UI as
+    # /data/media/books/audiobooks and /data/media/books/ebooks, and the
+    # download client's category as /data/downloads/books.
+    data:
+      enabled: true
+      existingClaim: media-data
+      mountPath: /data
+
+  home-ops-route-chart:
+    enabled: true
+    host: chaptarr.schober.dev
+    backend:
+      port: 80
+    authentik:
+      enabled: true
+
+  # ──────────────────────────────────────────────
+  # Database (home-ops-cnpg-cluster-chart)
+  # ──────────────────────────────────────────────
+  # home-ops-app-chart already declares the CNPG helper as a dependency, so
+  # enable it through the nested key. Same shape as sonarr/radarr/prowlarr/
+  # seerr: 3 instances, openebs-hostpath (node-local, and CNPG handles
+  # replication itself), barman-cloud backups to versitygw under the cluster's
+  # own prefix.
+  home-ops-cnpg-cluster-chart:
+    enabled: true
+    cluster:
+      instances: 3
+      imageName: ghcr.io/cloudnative-pg/postgresql:18.1
+      database: chaptarr
+      owner: chaptarr
+      # 10Gi: with archive_timeout=5min PostgreSQL emits a 16MB WAL segment
+      # every 5 minutes even when idle, so a 2Gi volume only leaves ~9h of
+      # headroom during a WAL archive outage.
+      storage:
+        size: 10Gi
+        class: openebs-hostpath
+      # The helper creates the main database and owner. Chaptarr also needs
+      # its log and cache databases, which must exist before it starts.
+      postInitSQL:
+        - CREATE DATABASE chaptarr_log OWNER chaptarr;
+        - CREATE DATABASE chaptarr_cache OWNER chaptarr;
+    backup:
+      enabled: true
+      # Existing backups run every 5 minutes from 03:05 to 04:00; 04:05 is the
+      # next free slot.
+      schedule: "0 5 4 * * *"
+      # Chaptarr's own versitygw account (versitygw cnpgClients) -- not the
+      # shared root credentials.
+      credentials:
+        accessKeyIdRef: chaptarr-backup-id
+        secretAccessKeyRef: chaptarr-backup-secret
