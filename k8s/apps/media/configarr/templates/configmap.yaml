@@ -202,10 +202,9 @@ data:
           update_password: true
           delete_unmanaged:
             enabled: false
-    # Prowlarr pushes its indexers to Chaptarr via the Readarr application
-    # type. Existing manually managed Sonarr/Radarr applications are left alone
-    # because delete_unmanaged stays disabled (configarr only ensures the
-    # entries listed here).
+    # Prowlarr pushes its indexers to every application listed here: Sonarr and
+    # Radarr use their native application types, Chaptarr uses the Readarr type.
+    # delete_unmanaged stays disabled so apps added manually in the UI survive.
     prowlarr:
       main:
         base_url: {{ .Values.config.prowlarr.baseUrl | quote }}
