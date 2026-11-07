@@ -212,6 +212,29 @@ data:
         api_key: !env PROWLARR_API_KEY
         applications:
           data:
+            # Existing manual app entries are now adopted by configarr. The
+            # category lists match what was configured in Prowlarr; without
+            # them a full update would reset the apps to Prowlarr's defaults.
+            - name: {{ .Values.config.prowlarr.sonarrApplicationName | quote }}
+              type: Sonarr
+              sync_level: fullSync
+              fields:
+                prowlarrUrl: {{ printf "%s:80" .Values.config.prowlarr.baseUrl | quote }}
+                baseUrl: {{ printf "%s:80" .Values.config.sonarr.baseUrl | quote }}
+                apiKey: !env SONARR_API_KEY
+                syncCategories: [5000, 5010, 5020, 5030, 5040, 5045, 5050, 5090]
+                animeSyncCategories: [5070]
+                syncAnimeStandardFormatSearch: true
+                syncRejectBlocklistedTorrentHashesWhileGrabbing: false
+            - name: {{ .Values.config.prowlarr.radarrApplicationName | quote }}
+              type: Radarr
+              sync_level: fullSync
+              fields:
+                prowlarrUrl: {{ printf "%s:80" .Values.config.prowlarr.baseUrl | quote }}
+                baseUrl: {{ printf "%s:80" .Values.config.radarr.baseUrl | quote }}
+                apiKey: !env RADARR_API_KEY
+                syncCategories: [2000, 2010, 2020, 2030, 2040, 2045, 2050, 2060, 2070, 2080, 2090]
+                syncRejectBlocklistedTorrentHashesWhileGrabbing: false
             - name: {{ .Values.config.prowlarr.chaptarrApplicationName | quote }}
               type: {{ .Values.config.prowlarr.chaptarrApplicationType | quote }}
               sync_level: fullSync
