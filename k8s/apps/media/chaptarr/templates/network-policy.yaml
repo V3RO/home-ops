@@ -4,9 +4,9 @@
        values. */}}
 {{- $port := 8789 }}
 ---
-# Ingress: only the internal ingress gateway reaches Chaptarr. OIDC is handled
-# by Chaptarr itself, so the gateway must be able to reach /login and
-# /signin-oidc directly.
+# Ingress: the internal ingress gateway (OIDC is handled by Chaptarr itself),
+# Prowlarr (pushes indexers through the Readarr application API) and configarr
+# (manages the qBittorrent download client).
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -23,6 +23,16 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: istio-ingress-internal
+      ports:
+        - protocol: TCP
+          port: {{ $port }}
+    - from:
+        - podSelector:
+            matchLabels:
+              app: prowlarr
+        - podSelector:
+            matchLabels:
+              app: configarr
       ports:
         - protocol: TCP
           port: {{ $port }}

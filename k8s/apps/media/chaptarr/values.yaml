@@ -49,6 +49,14 @@ home-ops-app-chart:
     # /config/config.xml by the init container below.
     - name: Chaptarr__Auth__Method
       value: oidc
+    # Fixed API key so Prowlarr (indexer push) and configarr (download client)
+    # can authenticate. Without this Chaptarr generates a random key on first
+    # start and stores it only in config.xml.
+    - name: Chaptarr__Auth__ApiKey
+      valueFrom:
+        secretKeyRef:
+          name: chaptarr-api-key
+          key: apiKey
     # CNPG database. Chaptarr expects three separate databases (main, log and
     # cache); the cluster helper creates the main one and creates the other two
     # through postInitSQL below.
@@ -70,25 +78,14 @@ home-ops-app-chart:
     - name: Chaptarr__Postgres__CacheDb
       value: chaptarr_cache
 
-  # /data/media is root-owned on the TrueNAS export, so the app user cannot
-  # create the book libraries itself. Create them once at pod start, matching
-  # the paths the other media apps use.
+  # The book directories are created and chowned by qBittorrent's
+  # configure-qbittorrent-auth init container (see qbittorrent/values.yaml),
+  # together with the tv/movies media directories. Only the OIDC seed remains
+  # here: Chaptarr reads the OIDC provider settings from config.xml, not from
+  # env (AuthOptions has no OIDC fields), so they cannot be set through env.
   initContainers:
-    - name: prepare-media
-      image: busybox:1.38
-      command:
-        - sh
-        - -c
-      args:
-        - |
-          mkdir -p /data/media/books/audiobooks /data/media/books/ebooks /data/downloads/books
-          chown 1000:1000 /data/media/books /data/media/books/audiobooks /data/media/books/ebooks /data/downloads/books
-      volumeMounts:
-        - name: data
-          mountPath: /data
-    # Chaptarr reads the OIDC provider settings from config.xml, not from env.
-    # Seed them once so the first start comes up with SSO enabled. An existing
-    # config file is left alone.
+    # Seed the OIDC provider settings once so the first start comes up with SSO
+    # enabled. An existing config file is left alone.
     - name: seed-oidc
       image: busybox:1.38
       envFrom:
@@ -176,9 +173,11 @@ home-ops-app-chart:
       size: 5Gi
       mountPath: /config
     # The same RWX library volume qBittorrent, Jellyfin and the *arr apps use.
-    # Configure the root folders in the UI as
-    # /data/media/books/audiobooks and /data/media/books/ebooks, and the
-    # download client's category as /data/downloads/books.
+    # The qBittorrent download client is managed by configarr. Root folders
+    # still have to be added in the UI (/data/media/books/audiobooks and
+    # /data/media/books/ebooks) because Chaptarr's root-folder schema (per-media
+    # quality/metadata profile IDs, folderType) differs from Readarr's, which is
+    # what configarr speaks.
     data:
       enabled: true
       existingClaim: media-data
@@ -199,6 +198,18 @@ home-ops-app-chart:
         data:
           OIDC_CLIENT_SECRET: "{{ .secret }}"
       injectAsEnv: true
+    # Shared with Prowlarr/configarr. Bitwarden key `chaptarr-api-key` holds
+    # this instance's API key; Prowlarr stores it on its Chaptarr application.
+    api-key:
+      enabled: true
+      refreshInterval: 12h
+      secretStoreRef:
+        kind: ClusterSecretStore
+        name: bitwarden-app-secrets
+      data:
+        - secretKey: apiKey
+          remoteRef:
+            key: chaptarr-api-key
 
   # OIDC is handled by Chaptarr itself, so the route is not wrapped in
   # Authentik forward auth.

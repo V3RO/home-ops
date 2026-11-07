@@ -75,6 +75,16 @@ config:
     hdProfile:
       name: HD Bluray + WEB
       trashId: d1d67249d3890e49bc12e275d989a7e9
+  chaptarr:
+    baseUrl: http://chaptarr.media.svc.cluster.local
+    downloadClientName: qBittorrent
+    category: books
+  prowlarr:
+    baseUrl: http://prowlarr.media.svc.cluster.local
+    # Prowlarr implementation used for Chaptarr. Chaptarr is a Readarr fork and
+    # exposes the same application/indexer sync API.
+    chaptarrApplicationType: Readarr
+    chaptarrApplicationName: Chaptarr
   qbittorrent:
     host: qbittorrent.media.svc.cluster.local
     port: 80
@@ -90,4 +100,6 @@ externalSecret:
   keys:
     sonarrApiKey: sonarr-api-key
     radarrApiKey: radarr-api-key
+    chaptarrApiKey: chaptarr-api-key
+    prowlarrApiKey: prowlarr-api-key
     qbittorrentApiKey: qbittorrent-api-key

@@ -175,3 +175,52 @@ data:
           {{- range .Values.config.radarr.rootFolders }}
           - {{ . | quote }}
           {{- end }}
+    # Chaptarr is a Readarr fork and speaks the same v1 API for download
+    # clients. Root folders are intentionally not managed here: Chaptarr uses
+    # per-media quality/metadata profile IDs and a folderType, which configarr's
+    # Readarr root-folder sync does not understand. Add them in the UI.
+    readarr:
+      chaptarr:
+        base_url: {{ .Values.config.chaptarr.baseUrl | quote }}
+        api_key: !env CHAPTARR_API_KEY
+        download_clients:
+          data:
+            - name: {{ .Values.config.chaptarr.downloadClientName | quote }}
+              type: qbittorrent
+              enable: true
+              priority: 1
+              remove_completed_downloads: false
+              remove_failed_downloads: false
+              fields:
+                host: {{ .Values.config.qbittorrent.host | quote }}
+                port: {{ .Values.config.qbittorrent.port }}
+                use_ssl: {{ .Values.config.qbittorrent.useSsl }}
+                url_base: {{ .Values.config.qbittorrent.urlBase | quote }}
+                api_key: !env QBITTORRENT_API_KEY
+                audiobook_category: {{ .Values.config.chaptarr.category | quote }}
+                ebook_category: {{ .Values.config.chaptarr.category | quote }}
+          update_password: true
+          delete_unmanaged:
+            enabled: false
+    # Prowlarr pushes its indexers to Chaptarr via the Readarr application
+    # type. Existing manually managed Sonarr/Radarr applications are left alone
+    # because delete_unmanaged stays disabled (configarr only ensures the
+    # entries listed here).
+    prowlarr:
+      main:
+        base_url: {{ .Values.config.prowlarr.baseUrl | quote }}
+        api_key: !env PROWLARR_API_KEY
+        applications:
+          data:
+            - name: {{ .Values.config.prowlarr.chaptarrApplicationName | quote }}
+              type: {{ .Values.config.prowlarr.chaptarrApplicationType | quote }}
+              sync_level: fullSync
+              fields:
+                prowlarrUrl: {{ printf "%s:80" .Values.config.prowlarr.baseUrl | quote }}
+                baseUrl: {{ printf "%s:80" .Values.config.chaptarr.baseUrl | quote }}
+                apiKey: !env CHAPTARR_API_KEY
+          delete_unmanaged:
+            enabled: false
+          # Trigger Prowlarr's "Sync App Indexers" immediately so Chaptarr gets
+          # the current indexer set on the next configarr run.
+          sync_indexers: true

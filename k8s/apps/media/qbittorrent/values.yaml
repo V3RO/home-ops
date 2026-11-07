@@ -47,10 +47,16 @@ qbittorrent:
     categories:
       tv: /data/downloads/tv
       movies: /data/downloads/movies
-  # Directories created (and chowned to PUID:PGID) by the init container
+      books: /data/downloads/books
+  # Directories created (and chowned to PUID:PGID) by the init container.
+  # The book directories live here (instead of a Chaptarr-specific init
+  # container) so every media path is prepared in one place.
   mediaDirs:
     - /data/media/tv
     - /data/media/movies
+    - /data/media/books
+    - /data/media/books/audiobooks
+    - /data/media/books/ebooks
 
 proxy:
   service:

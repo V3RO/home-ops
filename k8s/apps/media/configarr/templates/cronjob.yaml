@@ -38,6 +38,16 @@ spec:
                     secretKeyRef:
                       name: configarr-secret
                       key: RADARR_API_KEY
+                - name: CHAPTARR_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: configarr-secret
+                      key: CHAPTARR_API_KEY
+                - name: PROWLARR_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: configarr-secret
+                      key: PROWLARR_API_KEY
                 - name: QBITTORRENT_API_KEY
                   valueFrom:
                     secretKeyRef:
