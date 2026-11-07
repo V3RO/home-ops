@@ -126,7 +126,7 @@ spec:
     - from:
         - podSelector:
             matchLabels:
-              app: chaptarr
+              app.kubernetes.io/name: chaptarr
       ports:
         - protocol: TCP
           port: {{ .Values.qbittorrent.service.targetPort }}
