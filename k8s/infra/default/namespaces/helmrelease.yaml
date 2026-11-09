@@ -158,3 +158,4 @@ spec:
       - name: mc-router
         labels:
           istio.io/dataplane-mode: none
+      - name: securo

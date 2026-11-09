@@ -1,0 +1,112 @@
+securo:
+  global:
+    domain: securo.schober.dev
+    tls: true
+    # Populated by templates/external-secret.yaml from Bitwarden. The chart
+    # renders its own Secret only when this is empty, so this also prevents a
+    # second, placeholder secret from being created.
+    existingSecret: securo-secrets
+
+  ingress:
+    enabled: false
+
+  # The chart's HTTPRoute already splits /api to the backend and / to the
+  # frontend, so no home-ops-route-chart is needed.
+  httpRoute:
+    enabled: true
+    parentRefs:
+      - group: gateway.networking.k8s.io
+        kind: Gateway
+        name: internal-gateway
+        namespace: istio-ingress-internal
+        sectionName: https
+
+  # Both databases are provided by the cluster, not by the upstream chart.
+  postgresql:
+    enabled: false
+  redis:
+    enabled: false
+
+  mcpServer:
+    enabled: false
+  autoscaling:
+    enabled: false
+
+  config:
+    debug: "false"
+    # Authentik is the only login method. Securo refuses to start with
+    # LOCAL_AUTH_ENABLED=false unless the OIDC settings below are complete.
+    localAuthEnabled: "false"
+    agentsEnabled: "false"
+
+    oidcEnabled: "true"
+    oidcProviderName: "Authentik"
+    oidcDiscoveryUrl: "https://auth.schober.dev/application/o/securo/.well-known/openid-configuration"
+    oidcRedirectUri: "https://securo.schober.dev/api/auth/oidc/callback"
+    oidcScopes: "openid email profile groups"
+    oidcAutoRegister: "true"
+    oidcExistingUserLinkMode: "disabled"
+    oidcRequireVerifiedEmail: "true"
+    oidcSyncRoles: "true"
+    oidcRolesClaim: "groups"
+    oidcAdminRoles: "homelab-admins"
+
+    # The real connection strings are supplied by the ExternalSecret. These
+    # keys are still rendered into the ConfigMap, but envFrom lists the
+    # secretRef last, so the secret values win.
+    redisUrl: ""
+    celeryBrokerUrl: ""
+    celeryResultBackend: ""
+
+  persistence:
+    # Backend and worker both mount this volume, so it must be RWX. Cold
+    # receipts and invoice logos go to the replicated HDD pool; the hot
+    # database and Valkey stay on local NVMe.
+    attachments:
+      enabled: true
+      size: 10Gi
+      storageClass: truenas-nfs-media
+      accessMode: ReadWriteMany
+
+externalSecret:
+  enabled: true
+  refreshInterval: 1h0m0s
+  secretStoreRef:
+    name: bitwarden-app-secrets
+    kind: ClusterSecretStore
+  # The database password lives in the CNPG Bitwarden project, while the
+  # application secrets live in the app project.
+  cnpgSecretStoreRef:
+    name: bitwarden-cnpg-secrets
+    kind: ClusterSecretStore
+  keys:
+    secretKey: securo-secret-key
+    valkeyPassword: valkey-password
+    oidcClientSecret: authentik-securo-client-secret
+    dbPassword: securo-db-secret
+
+home-ops-cnpg-cluster-chart:
+  enabled: true
+  cluster:
+    instances: 3
+    # The standard CNPG image already ships the pgvector package. The
+    # Database resource in templates/database.yaml creates the extension as
+    # superuser, which the application role cannot do on its own.
+    imageName: ghcr.io/cloudnative-pg/postgresql:18.1
+    storage:
+      size: 10Gi
+      class: openebs-hostpath
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi
+  backup:
+    # 04:05 is the next free slot after affine (04:00); the rest of the
+    # cluster uses 03:05-03:55.
+    schedule: "0 5 4 * * *"
+    credentials:
+      accessKeyIdRef: securo-backup-id
+      secretAccessKeyRef: securo-backup-secret

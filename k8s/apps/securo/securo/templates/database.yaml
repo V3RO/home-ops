@@ -1,0 +1,17 @@
+# Securo's first agents migration runs CREATE EXTENSION IF NOT EXISTS vector,
+# and pgvector is not a trusted extension, so the application role cannot
+# install it. CloudNativePG's Database resource manages extensions with the
+# privileges the operator has, before the app migration needs them.
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: {{ .Release.Name }}-extensions
+  namespace: {{ .Release.Namespace }}
+spec:
+  name: {{ .Release.Name }}
+  owner: {{ .Release.Name }}
+  cluster:
+    name: {{ .Release.Name }}-postgres
+  extensions:
+    - name: vector
+      ensure: present

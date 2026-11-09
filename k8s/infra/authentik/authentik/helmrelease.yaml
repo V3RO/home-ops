@@ -130,6 +130,11 @@ spec:
               secretKeyRef:
                 name: authentik-secret
                 key: renovateClientSecret
+          - name: AUTHENTIK_SECURO_CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: authentik-secret
+                key: securoClientSecret
           - name: AUTHENTIK_EMAIL__HOST
             valueFrom:
               secretKeyRef:
@@ -213,6 +218,7 @@ spec:
           - blueprint-bazarr
           - blueprint-opencode
           - blueprint-chaptarr
+          - blueprint-securo
           - blueprint-valkey-admin
           - blueprint-thanos
           - blueprint-thanos-bucket
@@ -688,6 +694,29 @@ spec:
               metaLaunchUrl: https://qui.schober.dev
               icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/qui.svg
             access: admin
+          - name: securo
+            provider:
+              kind: oauth2
+              name: Securo
+              clientId: securo
+              clientSecretEnv: AUTHENTIK_SECURO_CLIENT_SECRET
+              grantTypes:
+                - authorization_code
+                - refresh_token
+              includeGroups: true
+              # Securo requires a verified email claim. The homelab Authentik
+              # users are trusted and do not all run the verification flow, so
+              # assert the claim here rather than locking out the first login.
+              assertEmailVerified: true
+              redirectUris:
+                - url: https://securo.schober.dev/api/auth/oidc/callback
+                  matchingMode: strict
+            application:
+              name: Securo
+              slug: securo
+              metaLaunchUrl: https://securo.schober.dev
+              icon: https://raw.githubusercontent.com/securo-finance/securo/main/favicons/android-icon-192x192.png
+            access: user
           - name: homeassistant
             provider:
               kind: oauth2
@@ -742,6 +771,7 @@ spec:
         quiClientSecret: authentik-qui-client-secret
         chaptarrClientSecret: authentik-chaptarr-client-secret
         renovateClientSecret: authentik-renovate-client-secret
+        securoClientSecret: authentik-securo-client-secret
         userPasswords:
           - username: V3RO
             bitwardenItem: authentik-user-v3ro-password

@@ -54,6 +54,7 @@ spec:
       - qui
       - homeassistant
       - chaptarr
+      - securo
 
     dataClients:
       - name: forgejo-data
