@@ -51,6 +51,13 @@ securo:
     oidcRolesClaim: "groups"
     oidcAdminRoles: "homelab-admins"
 
+    # Enable Banking. The chart has no secrets volume, so the PEM is supplied
+    # as ENABLE_BANKING_PRIVATE_KEY from the ExternalSecret rather than via
+    # ENABLE_BANKING_PRIVATE_KEY_FILE. Register this exact URL in the Enable
+    # Banking portal before connecting a bank.
+    enableBankingApiUrl: "https://api.enablebanking.com"
+    enableBankingOauthRedirectUri: "https://securo.schober.dev/oauth/callback"
+
     # The real connection strings are supplied by the ExternalSecret. These
     # keys are still rendered into the ConfigMap, but envFrom lists the
     # secretRef last, so the secret values win.
@@ -84,6 +91,8 @@ externalSecret:
     valkeyPassword: valkey-password
     oidcClientSecret: authentik-securo-client-secret
     dbPassword: securo-db-secret
+    enableBankingAppId: enable-banking-app-id
+    enableBankingPrivateKey: enable-banking-private-key
 
 home-ops-cnpg-cluster-chart:
   enabled: true
