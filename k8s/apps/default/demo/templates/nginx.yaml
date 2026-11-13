@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: hello-wolrd
+  namespace: default
+  labels:
+    app.kubernetes.io/name: hello-wolrd
+spec:
+  containers:
+  - name: hello-wolrd
+    image: nginx
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "500m"
+      limits:
+        memory: "128Mi"
+        cpu: "500m"
+    ports:
+      - containerPort: 80
