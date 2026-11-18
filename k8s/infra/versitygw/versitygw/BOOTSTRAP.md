@@ -236,6 +236,13 @@ name as a **path** segment, not a query param. `HTTP 201` (created) or a
 response body containing `BucketAlreadyOwnedByYou`/`BucketAlreadyExists`
 both count as success.
 
+The request must also carry a `CreateBucketConfiguration` body with
+`<LocationConstraint>` set to the gateway region. versitygw v1.10.0 started
+enforcing the AWS rule that a non-`us-east-1` region cannot be combined with
+an omitted constraint (`IllegalLocationConstraintException`), so a bodyless
+request now fails even though it worked on v1.7.0. `us-east-1` remains the
+special case: omit the constraint there.
+
 **2. Re-apply the full policy document** — plain `PutBucketPolicy`, the
 standard S3 API (not the admin API), on the S3 port. Bucket policies are
 **replace, not merge**, so the whole document is re-declared every run,

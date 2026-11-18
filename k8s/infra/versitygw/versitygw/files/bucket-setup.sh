@@ -45,13 +45,28 @@ wait_for_gateway() {
 
 wait_for_gateway
 
+# versitygw v1.10.0 enforces the S3 CreateBucket location semantics
+# (versity/versitygw#2246): if the gateway's region is not us-east-1, a
+# request that omits LocationConstraint is rejected with
+# IllegalLocationConstraintException. This Job used to send no body at all,
+# which went unnoticed until the gateway was upgraded and the Job next ran.
+# The region is the third field of SIGV4 (aws:amz:<region>:s3); us-east-1 is
+# the AWS special case and must still omit the constraint.
+REGION=$(printf '%s' "$SIGV4" | cut -d: -f3)
+
 # 1. Ensure the bucket exists first -- PutBucketPolicy on a nonexistent
 # bucket 404s. Owner goes in a HEADER, not a query param (a query param here
 # 500s, not 400 -- see BOOTSTRAP.md), and the bucket name is a PATH segment.
+if [ "$REGION" = "us-east-1" ]; then
+  set --
+else
+  set -- --data-binary "<CreateBucketConfiguration xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\"><LocationConstraint>${REGION}</LocationConstraint></CreateBucketConfiguration>"
+fi
 code=$(curl -sS $CURL_RETRY -o /tmp/resp -w '%{http_code}' \
   --aws-sigv4 "$SIGV4" \
   --user "${ROOT_ACCESS_KEY_ID}:${ROOT_SECRET_ACCESS_KEY}" \
   -H "x-vgw-owner: ${ROOT_ACCESS_KEY_ID}" \
+  "$@" \
   -X PATCH "$ADMIN/${BUCKET}/create")
 echo "create-bucket ${BUCKET} -> HTTP $code"; cat /tmp/resp; echo
 
