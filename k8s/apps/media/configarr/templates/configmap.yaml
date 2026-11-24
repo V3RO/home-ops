@@ -99,6 +99,8 @@ data:
         include:
           - template: {{ .Values.config.radarr.profile.trashId | quote }}
             source: TRASH
+          - template: {{ .Values.config.radarr.animeProfile.trashId | quote }}
+            source: TRASH
           - template: {{ .Values.config.radarr.hdProfile.trashId | quote }}
             source: TRASH
         custom_format_groups:
@@ -124,8 +126,6 @@ data:
         cloneQualityProfiles:
           - from: {{ .Values.config.radarr.profile.name | quote }}
             to: {{ .Values.config.radarr.germanProfile.name | quote }}
-          - from: {{ .Values.config.radarr.profile.name | quote }}
-            to: {{ .Values.config.radarr.animeProfile.name | quote }}
         custom_formats:
           - trash_ids:
               # Same-tier tie-breaker only: quality (resolution/source) always outranks

@@ -63,10 +63,14 @@ config:
     # there's no official name it has to match.
     germanProfile:
       name: UHD Bluray + WEB (German)
-    # No stock TRaSH-Guides anime profile for Radarr, so this is cloned from the
-    # base profile and scored with the TRaSH anime custom-format groups instead.
+    # TRaSH-Guides Radarr anime profile "[Anime] Remux-1080p" (the same guide and
+    # profile name as the Sonarr anime profile, but the Radarr template). It caps at
+    # 1080p - Remux/Bluray preferred, WEB and 720p/SD fallback - and pulls in the
+    # guide's anime score set, so only tiered release groups score high enough.
+    # Assign it to anime movies.
     animeProfile:
-      name: Anime
+      name: "[Anime] Remux-1080p"
+      trashId: 722b624f9af1e492284c4bc842153a38
     # Manual-pick fallback profile (Bluray-1080p preferred, WEB-1080p fallback, no
     # remux) for movies with no 4K release yet - select it per-request in Seerr's
     # advanced request options, not auto-assigned to anything.
