@@ -51,12 +51,18 @@ qbittorrent:
   # Directories created (and chowned to PUID:PGID) by the init container.
   # The book directories live here (instead of a Chaptarr-specific init
   # container) so every media path is prepared in one place.
+  #
+  # /data/cross-seed is qui's hardlink/reflink base directory (k8s/apps/media/qui,
+  # Cross-Seed > After injection). It lives on the same media-data export as
+  # /data/downloads and /data/media so the links stay on one filesystem, and is
+  # created here so uid 1000 owns it before qui first writes to it.
   mediaDirs:
     - /data/media/tv
     - /data/media/movies
     - /data/media/books
     - /data/media/books/audiobooks
     - /data/media/books/ebooks
+    - /data/cross-seed
 
 proxy:
   service:
