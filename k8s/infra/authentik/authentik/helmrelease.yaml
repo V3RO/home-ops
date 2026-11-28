@@ -135,6 +135,11 @@ spec:
               secretKeyRef:
                 name: authentik-secret
                 key: securoClientSecret
+          - name: AUTHENTIK_PAPRA_CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: authentik-secret
+                key: papraClientSecret
           - name: AUTHENTIK_EMAIL__HOST
             valueFrom:
               secretKeyRef:
@@ -219,6 +224,7 @@ spec:
           - blueprint-opencode
           - blueprint-chaptarr
           - blueprint-securo
+          - blueprint-papra
           - blueprint-valkey-admin
           - blueprint-thanos
           - blueprint-thanos-bucket
@@ -717,6 +723,26 @@ spec:
               metaLaunchUrl: https://securo.schober.dev
               icon: https://raw.githubusercontent.com/securo-finance/securo/main/favicons/android-icon-192x192.png
             access: user
+          - name: papra
+            provider:
+              kind: oauth2
+              name: Papra
+              clientId: papra
+              clientSecretEnv: AUTHENTIK_PAPRA_CLIENT_SECRET
+              grantTypes:
+                - authorization_code
+                - refresh_token
+              includeGroups: true
+              assertEmailVerified: true
+              redirectUris:
+                - url: https://papra.schober.dev/api/auth/oauth2/callback/authentik
+                  matchingMode: strict
+            application:
+              name: Papra
+              slug: papra
+              metaLaunchUrl: https://papra.schober.dev
+              icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/papra.svg
+            access: user
           - name: homeassistant
             provider:
               kind: oauth2
@@ -772,6 +798,7 @@ spec:
         chaptarrClientSecret: authentik-chaptarr-client-secret
         renovateClientSecret: authentik-renovate-client-secret
         securoClientSecret: authentik-securo-client-secret
+        papraClientSecret: authentik-papra-client-secret
         userPasswords:
           - username: V3RO
             bitwardenItem: authentik-user-v3ro-password

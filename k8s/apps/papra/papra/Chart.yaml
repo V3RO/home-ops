@@ -1,0 +1,9 @@
+apiVersion: v2
+name: papra
+description: "Papra document archiving platform with VersityGW S3 storage and Authentik OIDC"
+type: application
+version: 0.1.0
+dependencies:
+  - name: home-ops-app-chart
+    version: 0.3.2
+    repository: oci://zot.schober.dev/charts

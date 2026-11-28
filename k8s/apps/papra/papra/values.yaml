@@ -1,0 +1,166 @@
+home-ops-app-chart:
+  image:
+    repository: ghcr.io/papra-hq/papra
+    tag: "26.7.1-rootless"
+    pullPolicy: IfNotPresent
+
+  # Single writer for the local SQLite database and task queue on the PVC.
+  strategy:
+    type: Recreate
+
+  podAnnotations:
+    reloader.stakater.com/auto: "true"
+
+  # The rootless image creates a system user (UID/GID 999); setting 1000 makes
+  # sure the mounted /app/app-data Longhorn PVC is writable by the container.
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    fsGroupChangePolicy: OnRootMismatch
+    seccompProfile:
+      type: RuntimeDefault
+
+  securityContext:
+    allowPrivilegeEscalation: false
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    capabilities:
+      drop:
+        - ALL
+    seccompProfile:
+      type: RuntimeDefault
+
+  ports:
+    - name: http
+      containerPort: 1221
+      protocol: TCP
+
+  env:
+    - name: TZ
+      value: Europe/Vienna
+    - name: APP_BASE_URL
+      value: https://papra.schober.dev
+    - name: DATABASE_URL
+      value: file:./app-data/db/db.sqlite
+    # Persist queued background extraction jobs across pod restarts instead of
+    # Papra's default in-memory queue.
+    - name: TASKS_PERSISTENCE_DRIVER
+      value: libsql
+    - name: TASKS_PERSISTENCE_DRIVERS_LIBSQL_URL
+      value: file:./app-data/db/tasks-db.sqlite
+    # Primary document blobs live in VersityGW; only the SQLite metadata/FTS5
+    # index and task queue stay on the local NVMe-backed Longhorn PVC.
+    - name: DOCUMENT_STORAGE_DRIVER
+      value: s3
+    - name: DOCUMENT_STORAGE_S3_ENDPOINT
+      value: http://versitygw.versitygw.svc.cluster.local:7070
+    - name: DOCUMENT_STORAGE_S3_REGION
+      value: homelab
+    - name: DOCUMENT_STORAGE_S3_BUCKET_NAME
+      value: papra
+    - name: DOCUMENT_STORAGE_S3_FORCE_PATH_STYLE
+      value: "true"
+    # Authentik OIDC is the only login method. Registration stays enabled so
+    # users permitted by the Authentik application policy are provisioned on
+    # first OIDC login; local email/password login is disabled.
+    - name: AUTH_PROVIDERS_EMAIL_IS_ENABLED
+      value: "false"
+    - name: AUTH_IS_REGISTRATION_ENABLED
+      value: "true"
+    - name: AUTH_IS_PASSWORD_RESET_ENABLED
+      value: "false"
+    - name: AUTH_FIRST_USER_AS_ADMIN
+      value: "true"
+    - name: AUTH_SHOW_LEGAL_LINKS
+      value: "false"
+
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+
+  startupProbe:
+    httpGet:
+      path: /api/health
+      port: http
+    periodSeconds: 5
+    timeoutSeconds: 5
+    failureThreshold: 60
+
+  livenessProbe:
+    httpGet:
+      path: /api/ping
+      port: http
+    initialDelaySeconds: 15
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  readinessProbe:
+    httpGet:
+      path: /api/health
+      port: http
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  service:
+    ports:
+      - name: http
+        port: 1221
+        targetPort: http
+        protocol: TCP
+
+  persistence:
+    data:
+      enabled: true
+      storageClass: longhorn
+      accessModes:
+        - ReadWriteOnce
+      size: 5Gi
+      mountPath: /app/app-data
+
+  home-ops-route-chart:
+    enabled: true
+    host: papra.schober.dev
+    backend:
+      port: 1221
+
+  externalSecrets:
+    secrets:
+      enabled: true
+      refreshInterval: 1h
+      secretStoreRef:
+        kind: ClusterSecretStore
+        name: bitwarden-app-secrets
+      injectAsEnv: true
+      data:
+        - secretKey: authSecret
+          remoteRef:
+            key: papra-auth-secret
+        - secretKey: oidcClientSecret
+          remoteRef:
+            key: authentik-papra-client-secret
+        # Written by the VersityGW chart's PushSecret for the `papra` data
+        # client (k8s/infra/versitygw/versitygw/templates/data-client-credentials.yaml).
+        - secretKey: s3AccessKeyId
+          remoteRef:
+            key: papra-id
+        - secretKey: s3SecretAccessKey
+          remoteRef:
+            key: papra-secret
+      template:
+        engineVersion: v2
+        data:
+          AUTH_SECRET: "{{ .authSecret }}"
+          DOCUMENT_STORAGE_S3_ACCESS_KEY_ID: "{{ .s3AccessKeyId }}"
+          DOCUMENT_STORAGE_S3_SECRET_ACCESS_KEY: "{{ .s3SecretAccessKey }}"
+          AUTH_PROVIDERS_CUSTOMS: >-
+            [{"providerId":"authentik","providerName":"Authentik","providerIconUrl":"https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/authentik.svg","clientId":"papra","clientSecret":{{ .oidcClientSecret | toJson }},"type":"oidc","discoveryUrl":"https://auth.schober.dev/application/o/papra/.well-known/openid-configuration","scopes":["openid","profile","email"]}]

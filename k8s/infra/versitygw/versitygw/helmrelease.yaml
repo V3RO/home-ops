@@ -65,6 +65,8 @@ spec:
       # with backup.s3.createBucketIfNotExists: false.
       - name: minecraft
         bucket: minecraft-backups
+      - name: papra
+        bucket: papra
       - name: thanos
         bucket: thanos
 

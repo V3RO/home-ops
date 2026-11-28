@@ -159,3 +159,4 @@ spec:
         labels:
           istio.io/dataplane-mode: none
       - name: securo
+      - name: papra
